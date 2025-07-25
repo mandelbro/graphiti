@@ -4,16 +4,16 @@ Integration tests for OAuth wrapper with MCP server
 These are mocked integration tests that verify the integration paths work correctly
 """
 
-import asyncio
 import json
 import os
-import pytest
-import httpx
-from unittest.mock import patch, AsyncMock
-from fastapi.testclient import TestClient
 
 # Import the OAuth wrapper app
 import sys
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from fastapi.testclient import TestClient
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from oauth_wrapper import app
 
@@ -40,17 +40,17 @@ class TestOAuthIntegration:
         auth_server_response = client.get("/.well-known/oauth-authorization-server")
         assert auth_server_response.status_code == 200
         auth_server_data = auth_server_response.json()
-        
+
         # Step 2: Verify required endpoints exist
         assert "authorization_endpoint" in auth_server_data
         assert "token_endpoint" in auth_server_data
         assert "registration_endpoint" in auth_server_data
-        
+
         # Step 3: Discover protected resource
         resource_response = client.get("/.well-known/oauth-protected-resource")
         assert resource_response.status_code == 200
         resource_data = resource_response.json()
-        
+
         # Step 4: Verify resource points back to auth server
         assert "oauth_authorization_server" in resource_data
 
@@ -63,16 +63,16 @@ class TestOAuthIntegration:
             "grant_types": ["authorization_code"],
             "response_types": ["code"]
         }
-        
+
         reg_response = client.post("/register", json=registration_data)
         assert reg_response.status_code == 201
         client_info = reg_response.json()
-        
+
         # Step 2: Verify client credentials were issued
         assert "client_id" in client_info
         assert "client_secret" in client_info
         assert client_info["client_name"] == registration_data["client_name"]
-        
+
         # Step 3: Verify client can be used (in a real scenario)
         # This would involve using the client_id in an authorization request
         assert len(client_info["client_id"]) > 10  # Reasonable length
@@ -83,15 +83,15 @@ class TestOAuthIntegration:
         with patch("src.oauth_wrapper.httpx.AsyncClient") as mock_client_class:
             mock_instance = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_instance
-            
+
             # Mock the stream response
             mock_stream_response = AsyncMock()
             mock_stream_response.aiter_bytes = AsyncMock()
             mock_stream_response.aiter_bytes.return_value = self._async_generator([b"data: test\n\n"])
             mock_instance.stream.return_value.__aenter__.return_value = mock_stream_response
-            
+
             response = client.get("/sse", headers={"Accept": "text/event-stream"})
-            
+
             # Verify SSE response format
             assert response.status_code == 200
             assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
@@ -104,11 +104,11 @@ class TestOAuthIntegration:
             "method": "tools/list",
             "params": {}
         }
-        
+
         with patch("src.oauth_wrapper.httpx.AsyncClient") as mock_client_class:
             mock_instance = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_instance
-            
+
             mock_response = AsyncMock()
             mock_response.status_code = 200
             mock_response.content = json.dumps({
@@ -117,9 +117,9 @@ class TestOAuthIntegration:
             }).encode()
             mock_response.headers = {"content-type": "application/json"}
             mock_instance.post.return_value = mock_response
-            
+
             response = client.post(f"/messages/?session_id={session_id}", json=message_data)
-            
+
             assert response.status_code == 200
             assert response.json() == {"type": "response", "result": {"tools": []}}
 
@@ -128,16 +128,16 @@ class TestOAuthIntegration:
         with patch("src.oauth_wrapper.httpx.AsyncClient") as mock_client_class:
             mock_instance = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_instance
-            
+
             # Simulate MCP server error
             mock_response = AsyncMock()
             mock_response.status_code = 500
             mock_response.content = b'{"error": "Internal server error"}'
             mock_response.headers = {"content-type": "application/json"}
             mock_instance.post.return_value = mock_response
-            
+
             response = client.post("/messages/", json={"invalid": "request"})
-            
+
             # Verify error is propagated
             assert response.status_code == 500
 
@@ -145,10 +145,10 @@ class TestOAuthIntegration:
         """Test handling of concurrent requests through OAuth wrapper"""
         # Test multiple concurrent requests to static endpoints
         responses = []
-        for i in range(5):
+        for _i in range(5):
             response = client.get("/.well-known/oauth-authorization-server")
             responses.append(response)
-        
+
         # Verify all requests succeeded
         for response in responses:
             assert response.status_code == 200

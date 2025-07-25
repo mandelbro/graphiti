@@ -3,16 +3,17 @@
 Simple tests for OAuth wrapper core functionality
 """
 
-import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock, MagicMock
-import json
+import os
 
 # Import the OAuth wrapper app
 import sys
-import os
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from fastapi.testclient import TestClient
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-from oauth_wrapper import app, OAUTH_CONFIG
+from oauth_wrapper import app
 
 
 class TestOAuthWrapperSimple:
@@ -41,7 +42,7 @@ class TestOAuthWrapperSimple:
         response = client.get("/.well-known/oauth-authorization-server")
         assert response.status_code == 200
         data = response.json()
-        
+
         # Verify required fields
         assert "issuer" in data
         assert "authorization_endpoint" in data
@@ -58,7 +59,7 @@ class TestOAuthWrapperSimple:
         response = client.get("/.well-known/oauth-protected-resource")
         assert response.status_code == 200
         data = response.json()
-        
+
         # Verify required fields
         assert "resource" in data
         assert "oauth_authorization_server" in data
@@ -71,11 +72,11 @@ class TestOAuthWrapperSimple:
             "client_name": "Test Client",
             "redirect_uris": ["http://localhost:3000/callback"]
         }
-        
+
         response = client.post("/register", json=client_data)
         assert response.status_code == 201
         data = response.json()
-        
+
         # Verify response contains required fields
         assert "client_id" in data
         assert "client_secret" in data
@@ -88,7 +89,7 @@ class TestOAuthWrapperSimple:
         """Test client registration with invalid JSON"""
         response = client.post("/register", content="invalid json")
         assert response.status_code == 400
-        data = response.json() 
+        data = response.json()
         assert data["error"] == "invalid_request"
 
     def test_messages_proxy_endpoint_exists(self, client, mock_env):
@@ -98,14 +99,14 @@ class TestOAuthWrapperSimple:
         with patch("src.oauth_wrapper.httpx.AsyncClient") as mock_client_class:
             mock_instance = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_instance
-            
+
             # Create a proper mock response
             mock_response = MagicMock()
             mock_response.content = b'{"success": true}'
             mock_response.status_code = 200
             mock_response.headers = {"content-type": "application/json"}
             mock_instance.post.return_value = mock_response
-            
+
             response = client.post("/messages/", json={"test": "data"})
             assert response.status_code == 200
 
@@ -115,13 +116,13 @@ class TestOAuthWrapperSimple:
         with patch("src.oauth_wrapper.httpx.AsyncClient") as mock_client_class:
             mock_instance = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_instance
-            
+
             mock_response = MagicMock()
             mock_response.content = b'{"success": true}'
             mock_response.status_code = 200
             mock_response.headers = {"content-type": "application/json"}
             mock_instance.post.return_value = mock_response
-            
+
             response = client.post("/sse", json={"test": "data"})
             assert response.status_code == 200
 
@@ -129,8 +130,8 @@ class TestOAuthWrapperSimple:
         """Test that environment variables are properly used"""
         # Test that the MCP_INTERNAL_PORT environment variable is used
         import os
-        from src.oauth_wrapper import proxy_sse
-        
+
+
         # Verify that the environment variable is read
         assert os.environ.get("MCP_INTERNAL_PORT") == "8021"
 
@@ -139,18 +140,18 @@ class TestOAuthWrapperSimple:
         with patch("src.oauth_wrapper.httpx.AsyncClient") as mock_client_class:
             mock_instance = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_instance
-            
+
             mock_response = MagicMock()
             mock_response.content = b'{"success": true}'
             mock_response.status_code = 200
             mock_response.headers = {"content-type": "application/json"}
             mock_instance.post.return_value = mock_response
-            
+
             # Send request with host header
-            response = client.post("/messages/", 
+            response = client.post("/messages/",
                                  json={"test": "data"},
                                  headers={"host": "example.com", "custom": "value"})
-            
+
             assert response.status_code == 200
             # The test passes if no exception is raised during header processing
 
@@ -159,17 +160,17 @@ class TestOAuthWrapperSimple:
         with patch("src.oauth_wrapper.httpx.AsyncClient") as mock_client_class:
             mock_instance = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_instance
-            
+
             mock_response = MagicMock()
             mock_response.content = b'{"success": true}'
             mock_response.status_code = 200
             mock_response.headers = {"content-type": "application/json"}
             mock_instance.post.return_value = mock_response
-            
+
             # Send request with query parameters
-            response = client.post("/messages/?session_id=123&param=value", 
+            response = client.post("/messages/?session_id=123&param=value",
                                  json={"test": "data"})
-            
+
             assert response.status_code == 200
             # Verify the mock was called (indicating proxying occurred)
             mock_instance.post.assert_called_once()
@@ -179,16 +180,16 @@ class TestOAuthWrapperSimple:
         with patch("src.oauth_wrapper.httpx.AsyncClient") as mock_client_class:
             mock_instance = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_instance
-            
+
             # Simulate an error response from MCP server
             mock_response = MagicMock()
             mock_response.content = b'{"error": "Not found"}'
             mock_response.status_code = 404
             mock_response.headers = {"content-type": "application/json"}
             mock_instance.post.return_value = mock_response
-            
+
             response = client.post("/messages/", json={"test": "data"})
-            
+
             # Error should be passed through
             assert response.status_code == 404
             assert response.json() == {"error": "Not found"}

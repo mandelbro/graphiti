@@ -3,20 +3,18 @@
 Comprehensive unit tests for OAuth wrapper
 """
 
-import asyncio
-import json
+import os
+
+# Import the OAuth wrapper app
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from starlette.responses import StreamingResponse
 
-# Import the OAuth wrapper app
-import sys
-import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-from oauth_wrapper import app, OAUTH_CONFIG
+from oauth_wrapper import OAUTH_CONFIG, app
 
 
 class TestOAuthWrapper:
@@ -50,7 +48,7 @@ class TestOAuthWrapper:
         response = client.get("/.well-known/oauth-authorization-server")
         assert response.status_code == 200
         data = response.json()
-        
+
         # Verify required fields
         assert data["issuer"] == OAUTH_CONFIG["issuer"]
         assert data["authorization_endpoint"] == f"{OAUTH_CONFIG['issuer']}/authorize"
@@ -67,7 +65,7 @@ class TestOAuthWrapper:
         response = client.get("/sse/.well-known/oauth-authorization-server")
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should return same metadata as main endpoint
         assert data["issuer"] == OAUTH_CONFIG["issuer"]
 
@@ -76,7 +74,7 @@ class TestOAuthWrapper:
         response = client.get("/.well-known/oauth-protected-resource")
         assert response.status_code == 200
         data = response.json()
-        
+
         # Verify required fields
         assert data["resource"] == OAUTH_CONFIG["issuer"]
         assert data["oauth_authorization_server"] == f"{OAUTH_CONFIG['issuer']}/.well-known/oauth-authorization-server"
@@ -89,11 +87,11 @@ class TestOAuthWrapper:
             "client_name": "Test Client",
             "redirect_uris": ["http://localhost:3000/callback"]
         }
-        
+
         response = client.post("/register", json=client_data)
         assert response.status_code == 201
         data = response.json()
-        
+
         # Verify response contains required fields
         assert "client_id" in data
         assert "client_secret" in data
@@ -117,22 +115,22 @@ class TestOAuthWrapper:
         # We need to test the actual endpoint behavior, not mock the client
         # since the client is created inside the generator function
         from fastapi.testclient import TestClient
-        
+
         with TestClient(app) as client:
             # The SSE endpoint returns a StreamingResponse
             # We'll just verify it accepts GET requests properly
             with patch("src.oauth_wrapper.httpx.AsyncClient") as mock_client_class:
                 mock_instance = AsyncMock()
                 mock_client_class.return_value.__aenter__.return_value = mock_instance
-                
+
                 # Mock the stream response
                 mock_stream_response = AsyncMock()
                 mock_stream_response.aiter_bytes = AsyncMock()
                 mock_stream_response.aiter_bytes.return_value = self._async_generator([b"data: test\n\n"])
                 mock_instance.stream.return_value.__aenter__.return_value = mock_stream_response
-                
+
                 response = client.get("/sse")
-                
+
                 # Verify the response headers
                 assert response.status_code == 200
                 assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
@@ -141,40 +139,40 @@ class TestOAuthWrapper:
     def test_sse_proxy_post(self, mock_env, client):
         """Test SSE proxy POST request"""
         test_body = {"test": "data"}
-        
+
         with patch("src.oauth_wrapper.httpx.AsyncClient") as mock_client_class:
             mock_instance = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_instance
-            
+
             # Create a proper mock response
             mock_response = MagicMock()
             mock_response.content = b'{"result": "success"}'
             mock_response.status_code = 200
             mock_response.headers = {"content-type": "application/json"}
             mock_instance.post.return_value = mock_response
-            
+
             response = client.post("/sse", json=test_body)
-            
+
             assert response.status_code == 200
             assert response.json() == {"result": "success"}
 
     def test_messages_proxy_post(self, mock_env, client):
         """Test messages proxy POST request"""
         test_body = {"message": "test"}
-        
+
         with patch("src.oauth_wrapper.httpx.AsyncClient") as mock_client_class:
             mock_instance = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_instance
-            
+
             # Create a proper mock response
             mock_response = MagicMock()
             mock_response.content = b'{"response": "ok"}'
             mock_response.status_code = 200
             mock_response.headers = {"content-type": "application/json"}
             mock_instance.post.return_value = mock_response
-            
+
             response = client.post("/messages/?session_id=123", json=test_body)
-            
+
             assert response.status_code == 200
             assert response.json() == {"response": "ok"}
 
@@ -184,10 +182,10 @@ class TestOAuthWrapper:
             "authorization": "Bearer test-token",
             "x-custom-header": "custom-value"
         }
-        
+
         # Track the headers that were passed to httpx
         captured_headers = None
-        
+
         def capture_stream_call(*args, **kwargs):
             nonlocal captured_headers
             captured_headers = kwargs.get("headers", {})
@@ -196,14 +194,14 @@ class TestOAuthWrapper:
             mock_stream.aiter_bytes = AsyncMock()
             mock_stream.aiter_bytes.return_value = self._async_generator([b"data: test\n\n"])
             return AsyncMock(__aenter__=AsyncMock(return_value=mock_stream))
-        
+
         with patch("src.oauth_wrapper.httpx.AsyncClient") as mock_client_class:
             mock_instance = AsyncMock()
             mock_instance.stream = capture_stream_call
             mock_client_class.return_value.__aenter__.return_value = mock_instance
-            
+
             response = client.get("/sse", headers=test_headers)
-            
+
             # The test client will consume the stream, so we just verify status
             assert response.status_code == 200
 
@@ -211,10 +209,9 @@ class TestOAuthWrapper:
         """Test SSE proxy handles httpx errors gracefully"""
         # When httpx fails inside the generator, FastAPI handles it
         with patch("src.oauth_wrapper.httpx.AsyncClient") as mock_client_class:
-            mock_instance = AsyncMock()
             # Make the AsyncClient constructor raise an error
             mock_client_class.return_value.__aenter__.side_effect = httpx.ConnectError("Connection failed")
-            
+
             # The error will be caught by FastAPI and return 500
             response = client.get("/sse")
             assert response.status_code == 500
