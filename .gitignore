@@ -171,3 +171,4 @@ cache.db*
 .cursor/
 tasks/
 .claude/
+CLAUDE.md
