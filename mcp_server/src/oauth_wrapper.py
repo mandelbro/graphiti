@@ -107,33 +107,36 @@ async def proxy_sse(request: Request):
     mcp_port = int(os.environ.get('MCP_INTERNAL_PORT', '2401'))
     mcp_url = f"http://localhost:{mcp_port}/sse"
     
-    # Create httpx client
-    async with httpx.AsyncClient() as client:
-        # Forward the request
-        headers = dict(request.headers)
-        headers.pop('host', None)  # Remove host header
+    # Forward the request headers
+    headers = dict(request.headers)
+    headers.pop('host', None)  # Remove host header
+    
+    if request.method == "GET":
+        # Handle SSE streaming
+        # Stream the response without buffering
+        async def generate():
+            # Create httpx client inside the generator to ensure it stays alive
+            async with httpx.AsyncClient() as client:
+                async with client.stream("GET", mcp_url, headers=headers, params=request.query_params) as response:
+                    async for chunk in response.aiter_bytes():
+                        yield chunk
         
-        if request.method == "GET":
-            # Handle SSE streaming
-            response = await client.get(
-                mcp_url,
-                headers=headers,
-                params=request.query_params,
-                follow_redirects=True
-            )
-            
-            # Stream the response
-            async def generate():
-                async for chunk in response.aiter_bytes():
-                    yield chunk
-            
-            return StreamingResponse(
-                generate(),
-                media_type="text/event-stream",
-                headers=dict(response.headers)
-            )
-        else:
-            # Handle POST requests
+        # Ensure proper SSE headers
+        sse_headers = {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+        
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers=sse_headers
+        )
+    else:
+        # Handle POST requests
+        async with httpx.AsyncClient() as client:
             body = await request.body()
             response = await client.post(
                 mcp_url,
@@ -147,6 +150,35 @@ async def proxy_sse(request: Request):
                 status_code=response.status_code,
                 headers=dict(response.headers)
             )
+
+
+# Proxy messages endpoint to the actual MCP server
+@app.post("/messages/")
+async def proxy_messages(request: Request):
+    """Proxy messages requests to the MCP server running on a different port"""
+    mcp_port = int(os.environ.get('MCP_INTERNAL_PORT', '2401'))
+    mcp_url = f"http://localhost:{mcp_port}/messages/"
+    
+    # Forward the request headers
+    headers = dict(request.headers)
+    headers.pop('host', None)  # Remove host header
+    
+    # Handle POST requests
+    async with httpx.AsyncClient() as client:
+        body = await request.body()
+        response = await client.post(
+            mcp_url,
+            headers=headers,
+            content=body,
+            params=request.query_params,
+            follow_redirects=True
+        )
+        
+        return Response(
+            content=response.content,
+            status_code=response.status_code,
+            headers=dict(response.headers)
+        )
 
 
 @app.get("/")
