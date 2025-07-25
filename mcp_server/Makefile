@@ -1,4 +1,4 @@
-.PHONY: install install-dev format lint test all check clean
+.PHONY: install install-dev format lint test all check clean dev up down logs
 
 # Define variables
 PYTHON = python3
@@ -7,6 +7,7 @@ PYTEST = $(UV) run pytest
 RUFF = $(UV) run ruff
 PYRIGHT = $(UV) run pyright
 BLACK = $(UV) run black
+DOCKER_COMPOSE = docker compose
 
 # Default target
 all: format lint test
@@ -46,6 +47,22 @@ clean:
 	rm -f .coverage
 	rm -f coverage.xml
 
+# Development with Docker Compose
+dev:
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+# Start services
+up:
+	$(DOCKER_COMPOSE) up -d
+
+# Stop services
+down:
+	$(DOCKER_COMPOSE) down
+
+# View logs
+logs:
+	$(DOCKER_COMPOSE) logs -f
+
 # Show help
 help:
 	@echo "Available targets:"
@@ -57,4 +74,8 @@ help:
 	@echo "  check       - Run format, lint, and test"
 	@echo "  clean       - Clean up generated files"
 	@echo "  all         - Run format, lint, and test (default)"
+	@echo "  dev         - Start development environment with watch"
+	@echo "  up          - Start services"
+	@echo "  down        - Stop services"
+	@echo "  logs        - View service logs"
 	@echo "  help        - Show this help message"
