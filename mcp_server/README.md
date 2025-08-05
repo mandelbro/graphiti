@@ -192,7 +192,7 @@ To use OpenAI instead of Ollama in Docker:
 
 3. **Set up environment variables** (optional):
    ```bash
-   cp sample_env.txt .env
+   cp .env.example .env
    # Edit .env with your configuration
    ```
 
@@ -203,7 +203,7 @@ To use OpenAI instead of Ollama in Docker:
 
 5. **Run the server**:
    ```bash
-   uv run src/graphiti_mcp_server.py.py --transport sse
+   uv run src/graphiti_mcp_server.py --transport sse
    ```
 
 ## Configuration
@@ -258,13 +258,13 @@ You can set these variables in a `.env` file in the project directory. A sample 
 To run the Graphiti MCP server directly using `uv`:
 
 ```bash
-uv run src/graphiti_mcp_server.py.py
+uv run src/graphiti_mcp_server.py
 ```
 
 With options:
 
 ```bash
-uv run src/graphiti_mcp_server.py.py --model gpt-4.1-mini --transport sse
+uv run src/graphiti_mcp_server.py --model gpt-4.1-mini --transport sse
 ```
 
 Available arguments:
@@ -295,7 +295,7 @@ The Graphiti MCP server provides flexible configuration options for Ollama model
 **Use default models:**
 ```bash
 # With default .env configuration
-uv run src/graphiti_mcp_server.py.py
+uv run src/graphiti_mcp_server.py
 
 # Or explicitly set in .env file:
 # USE_OLLAMA=true
@@ -305,22 +305,22 @@ uv run src/graphiti_mcp_server.py.py
 
 **Use a different LLM model:**
 ```bash
-uv run src/graphiti_mcp_server.py.py --ollama-llm-model llama3.2:3b
+uv run src/graphiti_mcp_server.py --ollama-llm-model llama3.2:3b
 ```
 
 **Use a different embedding model with custom dimension:**
 ```bash
-uv run src/graphiti_mcp_server.py.py --ollama-embedding-model all-minilm-l6-v2 --ollama-embedding-dim 384
+uv run src/graphiti_mcp_server.py --ollama-embedding-model all-minilm-l6-v2 --ollama-embedding-dim 384
 ```
 
 **Use custom max tokens for larger responses:**
 ```bash
-uv run src/graphiti_mcp_server.py.py --max-tokens 32768
+uv run src/graphiti_mcp_server.py --max-tokens 32768
 ```
 
 **Connect to a remote Ollama server:**
 ```bash
-uv run src/graphiti_mcp_server.py.py --ollama-base-url http://remote-server:11434/v1 --ollama-llm-model llama3.2:8b
+uv run src/graphiti_mcp_server.py --ollama-base-url http://remote-server:11434/v1 --ollama-llm-model llama3.2:8b
 ```
 
 #### Environment Variable Configuration
@@ -346,7 +346,7 @@ LLM_MAX_TOKENS=32768
 Then run the server:
 
 ```bash
-uv run src/graphiti_mcp_server.py.py
+uv run src/graphiti_mcp_server.py
 ```
 
 #### Configuration Priority
