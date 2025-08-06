@@ -208,6 +208,37 @@ To use OpenAI instead of Ollama in Docker:
 
 ## Configuration
 
+The server supports multiple configuration methods with the following precedence (highest to lowest):
+1. **CLI arguments** (highest priority)
+2. **Environment variables**
+3. **YAML configuration files**
+4. **Default values** (lowest priority)
+
+### Configuration Methods
+
+#### YAML Configuration Files (Recommended)
+
+For complex configurations, you can use YAML files in the `config/` directory:
+
+```yaml
+# config/providers/ollama.yml
+llm:
+  model: "deepseek-r1:7b"
+  base_url: "http://localhost:11434/v1"
+  temperature: 0.1
+  max_tokens: 8192
+  model_parameters:
+    num_ctx: 4096          # Context window size
+    num_predict: -1        # Number of tokens to predict
+    repeat_penalty: 1.1    # Penalty for repeating tokens
+    top_k: 40             # Limit token selection to top K
+    top_p: 0.9            # Cumulative probability cutoff
+```
+
+See the [config/README.md](config/README.md) for detailed information about YAML configuration.
+
+#### Environment Variables
+
 The server uses the following environment variables:
 
 - `NEO4J_URI`: URI for the Neo4j database (default: `bolt://localhost:7687`)
@@ -225,6 +256,8 @@ The server now defaults to using **Ollama** for LLM operations and embeddings. Y
 - `OLLAMA_EMBEDDING_MODEL`: Ollama embedding model name (default: `nomic-embed-text`)
 - `OLLAMA_EMBEDDING_DIM`: Ollama embedding dimension (default: `768`)
 - `LLM_MAX_TOKENS`: Maximum tokens for LLM responses (default: `8192`)
+
+**Ollama Model Parameters:** You can now configure Ollama-specific model parameters like `num_ctx`, `top_p`, `repeat_penalty`, etc. using YAML configuration files. This provides fine-grained control over model behavior that wasn't previously available through environment variables alone.
 
 #### OpenAI Configuration (Alternative)
 To use OpenAI instead of Ollama, set `USE_OLLAMA=false` and configure:
