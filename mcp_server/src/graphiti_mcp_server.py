@@ -10,7 +10,7 @@ import os
 import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any, TypedDict, cast, Optional, List
+from typing import Any, cast, Optional, List, Union, Dict
 
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from dotenv import load_dotenv
@@ -127,16 +127,16 @@ ENTITY_TYPES: dict[str, BaseModel] = {
 }
 
 
-# Type definitions for API responses
-class ErrorResponse(TypedDict):
+# Type definitions for API responses (using Pydantic for MCPO compatibility)
+class ErrorResponse(BaseModel):
     error: str
 
 
-class SuccessResponse(TypedDict):
+class SuccessResponse(BaseModel):
     message: str
 
 
-class NodeResult(TypedDict):
+class NodeResult(BaseModel):
     uuid: str
     name: str
     summary: str
@@ -146,22 +146,22 @@ class NodeResult(TypedDict):
     attributes: dict[str, Any]
 
 
-class NodeSearchResponse(TypedDict):
+class NodeSearchResponse(BaseModel):
     message: str
     nodes: List[NodeResult]
 
 
-class FactSearchResponse(TypedDict):
+class FactSearchResponse(BaseModel):
     message: str
     facts: List[dict[str, Any]]
 
 
-class EpisodeSearchResponse(TypedDict):
+class EpisodeSearchResponse(BaseModel):
     message: str
     episodes: List[dict[str, Any]]
 
 
-class StatusResponse(TypedDict):
+class StatusResponse(BaseModel):
     status: str
     message: str
 
@@ -516,7 +516,7 @@ class GraphitiEmbedderConfig(BaseModel):
 
         return config
 
-    def create_client(self) -> EmbedderClient | None:
+    def create_client(self) -> Union[EmbedderClient, None]:
         if self.use_ollama:
             # Ollama setup
             embedder_config = OpenAIEmbedderConfig(
@@ -841,7 +841,7 @@ async def add_memory(
     source: str = 'text',
     source_description: str = '',
     uuid: Optional[str] = None,
-) -> SuccessResponse | ErrorResponse:
+) -> Union[SuccessResponse, ErrorResponse]:
     """Add an episode to memory. This is the primary way to add information to the graph.
 
     This function returns immediately and processes the episode addition in the background.
@@ -978,7 +978,7 @@ async def search_memory_nodes(
     max_nodes: int = 10,
     center_node_uuid: Optional[str] = None,
     entity: str = '',  # cursor seems to break with None
-) -> NodeSearchResponse | ErrorResponse:
+) -> Union[NodeSearchResponse, ErrorResponse]:
     """Search the graph memory for relevant node summaries.
     These contain a summary of all of a node's relationships with other nodes.
 
@@ -1058,7 +1058,7 @@ async def search_memory_facts(
     group_ids: Optional[List[str]] = None,
     max_facts: int = 10,
     center_node_uuid: Optional[str] = None,
-) -> FactSearchResponse | ErrorResponse:
+) -> Union[FactSearchResponse, ErrorResponse]:
     """Search the graph memory for relevant facts.
 
     Args:
@@ -1107,7 +1107,7 @@ async def search_memory_facts(
 
 
 @mcp.tool()
-async def delete_entity_edge(uuid: str) -> SuccessResponse | ErrorResponse:
+async def delete_entity_edge(uuid: str) -> Union[SuccessResponse, ErrorResponse]:
     """Delete an entity edge from the graph memory.
 
     Args:
@@ -1137,7 +1137,7 @@ async def delete_entity_edge(uuid: str) -> SuccessResponse | ErrorResponse:
 
 
 @mcp.tool()
-async def delete_episode(uuid: str) -> SuccessResponse | ErrorResponse:
+async def delete_episode(uuid: str) -> Union[SuccessResponse, ErrorResponse]:
     """Delete an episode from the graph memory.
 
     Args:
@@ -1167,7 +1167,7 @@ async def delete_episode(uuid: str) -> SuccessResponse | ErrorResponse:
 
 
 @mcp.tool()
-async def get_entity_edge(uuid: str) -> dict[str, Any] | ErrorResponse:
+async def get_entity_edge(uuid: str) -> Union[dict[str, Any], ErrorResponse]:
     """Get an entity edge from the graph memory by its UUID.
 
     Args:
@@ -1200,7 +1200,7 @@ async def get_entity_edge(uuid: str) -> dict[str, Any] | ErrorResponse:
 @mcp.tool()
 async def get_episodes(
     group_id: Optional[str] = None, last_n: int = 10
-) -> List[dict[str, Any]] | EpisodeSearchResponse | ErrorResponse:
+) -> Union[List[dict[str, Any]], EpisodeSearchResponse, ErrorResponse]:
     """Get the most recent memory episodes for a specific group.
 
     Args:
@@ -1250,7 +1250,7 @@ async def get_episodes(
 
 
 @mcp.tool()
-async def clear_graph() -> SuccessResponse | ErrorResponse:
+async def clear_graph() -> Union[SuccessResponse, ErrorResponse]:
     """Clear all data from the graph memory and rebuild indices."""
     global graphiti_client
 
