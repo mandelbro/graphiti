@@ -34,6 +34,9 @@ from mcp.server.fastmcp import FastMCP
 from openai import AsyncAzureOpenAI
 from pydantic import BaseModel, Field
 
+from src.config_loader import config_loader
+from src.ollama_client import OllamaClient
+
 load_dotenv()
 
 
@@ -204,6 +207,116 @@ class GraphitiLLMConfig(BaseModel):
     use_ollama: bool = True  # Default to Ollama
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_llm_model: str = DEFAULT_LLM_MODEL
+    ollama_model_parameters: Dict[str, Any] = Field(default_factory=dict)
+
+    @classmethod
+    def from_yaml_and_env(cls) -> 'GraphitiLLMConfig':
+        """Create LLM configuration from YAML files and environment variables."""
+        # Start with defaults
+        config_data = {}
+
+        # Check if Ollama should be used (default to True)
+        use_ollama = config_loader.get_env_value('USE_OLLAMA', 'true', str).lower() == 'true'
+
+        if use_ollama:
+            # Load Ollama YAML configuration
+            try:
+                yaml_config = config_loader.load_provider_config('ollama')
+                llm_config = yaml_config.get('llm', {})
+            except Exception as e:
+                logger.warning(f"Failed to load Ollama YAML configuration: {e}")
+                llm_config = {}
+
+            # Merge YAML config with environment variables (env vars take precedence)
+            ollama_base_url = config_loader.get_env_value('OLLAMA_BASE_URL',
+                                                        llm_config.get('base_url', 'http://localhost:11434/v1'))
+            ollama_llm_model = config_loader.get_env_value('OLLAMA_LLM_MODEL',
+                                                         llm_config.get('model', DEFAULT_LLM_MODEL))
+            temperature = config_loader.get_env_value('LLM_TEMPERATURE',
+                                                    llm_config.get('temperature', 0.0), float)
+            max_tokens = config_loader.get_env_value('LLM_MAX_TOKENS',
+                                                   llm_config.get('max_tokens', 8192), int)
+
+            # Get Ollama model parameters from YAML
+            ollama_model_parameters = llm_config.get('model_parameters', {})
+
+            return cls(
+                api_key="abc",  # Ollama doesn't require a real API key
+                model=ollama_llm_model,
+                small_model=ollama_llm_model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                use_ollama=True,
+                ollama_base_url=ollama_base_url,
+                ollama_llm_model=ollama_llm_model,
+                ollama_model_parameters=ollama_model_parameters,
+            )
+        else:
+            # Load OpenAI or Azure OpenAI configuration
+            # Try Azure OpenAI first, then OpenAI
+            azure_openai_endpoint = os.environ.get('AZURE_OPENAI_ENDPOINT', None)
+
+            try:
+                if azure_openai_endpoint is not None:
+                    # Azure OpenAI configuration
+                    yaml_config = config_loader.load_provider_config('azure_openai')
+                else:
+                    # OpenAI configuration
+                    yaml_config = config_loader.load_provider_config('openai')
+
+                llm_config = yaml_config.get('llm', {})
+            except Exception as e:
+                logger.warning(f"Failed to load OpenAI/Azure OpenAI YAML configuration: {e}")
+                llm_config = {}
+
+            # Get model from environment, or use YAML config, or use default
+            model_env = os.environ.get('MODEL_NAME', '')
+            model = model_env if model_env.strip() else llm_config.get('model', DEFAULT_LLM_MODEL)
+
+            small_model_env = os.environ.get('SMALL_MODEL_NAME', '')
+            small_model = small_model_env if small_model_env.strip() else llm_config.get('small_model', SMALL_LLM_MODEL)
+
+            temperature = config_loader.get_env_value('LLM_TEMPERATURE',
+                                                    llm_config.get('temperature', 0.0), float)
+            max_tokens = config_loader.get_env_value('LLM_MAX_TOKENS',
+                                                   llm_config.get('max_tokens', 8192), int)
+
+            if azure_openai_endpoint is not None:
+                # Azure OpenAI setup
+                azure_openai_api_version = os.environ.get('AZURE_OPENAI_API_VERSION', None)
+                azure_openai_deployment_name = os.environ.get('AZURE_OPENAI_DEPLOYMENT_NAME', None)
+                azure_openai_use_managed_identity = (
+                    os.environ.get('AZURE_OPENAI_USE_MANAGED_IDENTITY', 'false').lower() == 'true'
+                )
+
+                if azure_openai_deployment_name is None:
+                    logger.error('AZURE_OPENAI_DEPLOYMENT_NAME environment variable not set')
+                    raise ValueError('AZURE_OPENAI_DEPLOYMENT_NAME environment variable not set')
+
+                api_key = None if azure_openai_use_managed_identity else os.environ.get('OPENAI_API_KEY', None)
+
+                return cls(
+                    azure_openai_use_managed_identity=azure_openai_use_managed_identity,
+                    azure_openai_endpoint=azure_openai_endpoint,
+                    api_key=api_key,
+                    azure_openai_api_version=azure_openai_api_version,
+                    azure_openai_deployment_name=azure_openai_deployment_name,
+                    model=model,
+                    small_model=small_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    use_ollama=False,
+                )
+            else:
+                # OpenAI setup
+                return cls(
+                    api_key=os.environ.get('OPENAI_API_KEY'),
+                    model=model,
+                    small_model=small_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    use_ollama=False,
+                )
 
     @classmethod
     def from_env(cls) -> 'GraphitiLLMConfig':
@@ -292,9 +405,9 @@ class GraphitiLLMConfig(BaseModel):
 
     @classmethod
     def from_cli_and_env(cls, args: argparse.Namespace) -> 'GraphitiLLMConfig':
-        """Create LLM configuration from CLI arguments, falling back to environment variables."""
-        # Start with environment-based config
-        config = cls.from_env()
+        """Create LLM configuration from CLI arguments, falling back to YAML and environment variables."""
+        # Start with YAML and environment-based config
+        config = cls.from_yaml_and_env()
 
         # CLI arguments override environment variables when provided
         if hasattr(args, 'use_ollama') and args.use_ollama is not None:
@@ -348,7 +461,10 @@ class GraphitiLLMConfig(BaseModel):
                 max_tokens=self.max_tokens,
                 base_url=self.ollama_base_url,
             )
-            return OpenAIClient(config=llm_client_config)
+            return OllamaClient(
+                config=llm_client_config,
+                model_parameters=self.ollama_model_parameters
+            )
 
         if self.azure_openai_endpoint is not None:
             # Azure OpenAI API setup
@@ -605,10 +721,19 @@ class GraphitiConfig(BaseModel):
         )
 
     @classmethod
+    def from_yaml_and_env(cls) -> 'GraphitiConfig':
+        """Create a configuration instance from YAML files and environment variables."""
+        return cls(
+            llm=GraphitiLLMConfig.from_yaml_and_env(),
+            embedder=GraphitiEmbedderConfig.from_env(),  # TODO: Add YAML support for embedder
+            neo4j=Neo4jConfig.from_env(),  # TODO: Add YAML support for Neo4j
+        )
+
+    @classmethod
     def from_cli_and_env(cls, args: argparse.Namespace) -> 'GraphitiConfig':
-        """Create configuration from CLI arguments, falling back to environment variables."""
-        # Start with environment configuration
-        config = cls.from_env()
+        """Create configuration from CLI arguments, falling back to YAML and environment variables."""
+        # Start with YAML and environment configuration
+        config = cls.from_yaml_and_env()
 
         # Apply CLI overrides
         if args.group_id:
