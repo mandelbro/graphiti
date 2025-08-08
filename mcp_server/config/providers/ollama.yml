@@ -13,7 +13,7 @@ llm:
   # These will be passed to the Ollama API in the request body
   model_parameters:
     # Context window size - number of tokens to consider for context
-    num_ctx: 50000
+    num_ctx: 12000
 
     # Number of tokens to predict (-1 for unlimited until stop)
     num_predict: -1
@@ -22,7 +22,7 @@ llm:
     repeat_penalty: 1.1
 
     # Limit the next token selection to the K most probable tokens
-    top_k: 80
+    top_k: 50
 
     # Cumulative probability cutoff for token selection
     top_p: 0.9
