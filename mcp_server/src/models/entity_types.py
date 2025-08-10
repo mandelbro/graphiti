@@ -28,11 +28,11 @@ class Requirement(BaseModel):
 
     project_name: str = Field(
         ...,
-        description='The name of the project to which the requirement belongs.',
+        description="The name of the project to which the requirement belongs.",
     )
     description: str = Field(
         ...,
-        description='Description of the requirement. Only use information mentioned in the context to write this description.',
+        description="Description of the requirement. Only use information mentioned in the context to write this description.",
     )
 
 
@@ -56,7 +56,7 @@ class Preference(BaseModel):
     )
     description: str = Field(
         ...,
-        description='Brief description of the preference. Only use information mentioned in the context to write this description.',
+        description="Brief description of the preference. Only use information mentioned in the context to write this description.",
     )
 
 
@@ -77,13 +77,13 @@ class Procedure(BaseModel):
 
     description: str = Field(
         ...,
-        description='Brief description of the procedure. Only use information mentioned in the context to write this description.',
+        description="Brief description of the procedure. Only use information mentioned in the context to write this description.",
     )
 
 
 # Dictionary mapping entity type names to their corresponding model classes
 ENTITY_TYPES: dict[str, BaseModel] = {
-    'Requirement': Requirement,  # type: ignore
-    'Preference': Preference,  # type: ignore
-    'Procedure': Procedure,  # type: ignore
+    "Requirement": Requirement,  # type: ignore
+    "Preference": Preference,  # type: ignore
+    "Procedure": Procedure,  # type: ignore
 }

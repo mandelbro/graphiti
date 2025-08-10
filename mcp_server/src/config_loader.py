@@ -21,13 +21,12 @@ longer overrideable via environment variables for cleaner configuration manageme
 Use local override files (*.local.yml) instead.
 """
 
-import os
 import logging
+import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yaml
-
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,7 @@ class ConfigLoader:
     variables following a clear precedence hierarchy.
     """
 
-    def __init__(self, config_dir: Optional[Path] = None):
+    def __init__(self, config_dir: Path | None = None):
         """
         Initialize the ConfigLoader.
 
@@ -54,7 +53,7 @@ class ConfigLoader:
         else:
             self.config_dir = Path(config_dir)
 
-    def load_yaml_config(self, config_path: str) -> Dict[str, Any]:
+    def load_yaml_config(self, config_path: str) -> dict[str, Any]:
         """
         Load a YAML configuration file.
 
@@ -71,7 +70,7 @@ class ConfigLoader:
             return {}
 
         try:
-            with open(full_path, 'r', encoding='utf-8') as file:
+            with open(full_path, encoding="utf-8") as file:
                 config = yaml.safe_load(file) or {}
                 logger.debug(f"Loaded configuration from {full_path}")
                 return config
@@ -79,7 +78,7 @@ class ConfigLoader:
             logger.warning(f"Failed to load configuration from {full_path}: {e}")
             return {}
 
-    def load_provider_config(self, provider: str) -> Dict[str, Any]:
+    def load_provider_config(self, provider: str) -> dict[str, Any]:
         """
         Load provider-specific configuration with local override support.
 
@@ -105,7 +104,7 @@ class ConfigLoader:
 
         return base_config
 
-    def load_database_config(self, database: str = "neo4j") -> Dict[str, Any]:
+    def load_database_config(self, database: str = "neo4j") -> dict[str, Any]:
         """
         Load database configuration.
 
@@ -117,7 +116,7 @@ class ConfigLoader:
         """
         return self.load_yaml_config(f"database/{database}.yml")
 
-    def load_server_config(self) -> Dict[str, Any]:
+    def load_server_config(self) -> dict[str, Any]:
         """
         Load server configuration.
 
@@ -127,7 +126,7 @@ class ConfigLoader:
         return self.load_yaml_config("server.yml")
 
     @staticmethod
-    def merge_configs(*configs: Dict[str, Any]) -> Dict[str, Any]:
+    def merge_configs(*configs: dict[str, Any]) -> dict[str, Any]:
         """
         Merge multiple configuration dictionaries with deep merging.
 
@@ -148,7 +147,7 @@ class ConfigLoader:
         return result
 
     @staticmethod
-    def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
         """
         Recursively merge two dictionaries.
 
@@ -162,7 +161,11 @@ class ConfigLoader:
         result = base.copy()
 
         for key, value in override.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            if (
+                key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)
+            ):
                 result[key] = ConfigLoader._deep_merge(result[key], value)
             else:
                 result[key] = value
@@ -187,16 +190,18 @@ class ConfigLoader:
             return default
 
         try:
-            if convert_type == bool:
-                return value.lower() in ('true', '1', 'yes', 'on')
-            elif convert_type == int:
+            if convert_type is bool:
+                return value.lower() in ("true", "1", "yes", "on")
+            elif convert_type is int:
                 return int(value)
-            elif convert_type == float:
+            elif convert_type is float:
                 return float(value)
             else:
                 return convert_type(value)
         except (ValueError, TypeError) as e:
-            logger.warning(f"Failed to convert environment variable {key}={value} to {convert_type}: {e}")
+            logger.warning(
+                f"Failed to convert environment variable {key}={value} to {convert_type}: {e}"
+            )
             return default
 
 
