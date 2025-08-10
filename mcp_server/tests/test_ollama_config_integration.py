@@ -235,6 +235,7 @@ class TestOllamaConfigIntegration:
                 yaml.dump(ollama_config, f)
 
             # Temporarily override the config loader's config directory
+            from src.config_loader import config_loader
             original_config_dir = config_loader.config_dir
             config_loader.config_dir = config_dir
 
@@ -293,6 +294,7 @@ class TestOllamaConfigIntegration:
                 yaml.dump(ollama_config, f)
 
             # Temporarily override the config loader's config directory
+            from src.config_loader import config_loader
             original_config_dir = config_loader.config_dir
             config_loader.config_dir = config_dir
 
@@ -307,14 +309,18 @@ class TestOllamaConfigIntegration:
                 # Mock the native API call
                 with patch('httpx.AsyncClient') as mock_client_class:
                     mock_client = AsyncMock()
-                    mock_response = AsyncMock()
+
+                    # Create a non-async mock response
+                    from unittest.mock import Mock
+                    mock_response = Mock()
                     mock_response.status_code = 200
-                    mock_response.raise_for_status = AsyncMock()
-                    mock_response.json.return_value = {
+                    mock_response.raise_for_status = Mock()
+                    mock_response.json = Mock(return_value={
                         "model": "integration-test:latest",
                         "response": "Integration test response",
                         "done": True
-                    }
+                    })
+
                     mock_client.post.return_value = mock_response
                     mock_client.__aenter__.return_value = mock_client
                     mock_client.__aexit__.return_value = None

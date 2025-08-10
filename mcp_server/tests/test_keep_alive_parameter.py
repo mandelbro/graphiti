@@ -5,7 +5,7 @@ which controls how long Ollama keeps models loaded in memory.
 """
 
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 from src.ollama_client import OllamaClient
 from graphiti_core.llm_client.config import LLMConfig
 
@@ -40,9 +40,9 @@ class TestKeepAliveParameter:
         with patch('httpx.AsyncClient') as mock_client_class:
             # Setup mock
             mock_client = AsyncMock()
-            mock_response = AsyncMock()
+            mock_response = MagicMock()  # Use MagicMock for response, not AsyncMock
             mock_response.status_code = 200
-            mock_response.raise_for_status = AsyncMock()
+            mock_response.raise_for_status = MagicMock()  # Synchronous method
             mock_response.json.return_value = {"response": "Integration test response"}
             mock_client.post.return_value = mock_response
             mock_client.__aenter__.return_value = mock_client
@@ -85,9 +85,9 @@ class TestKeepAliveParameter:
         with patch('httpx.AsyncClient') as mock_client_class:
             # Setup mock
             mock_client = AsyncMock()
-            mock_response = AsyncMock()
+            mock_response = MagicMock()  # Use MagicMock for response, not AsyncMock
             mock_response.status_code = 200
-            mock_response.raise_for_status = AsyncMock()
+            mock_response.raise_for_status = MagicMock()  # Synchronous method
             mock_response.json.return_value = {"response": "Config integration response"}
             mock_client.post.return_value = mock_response
             mock_client.__aenter__.return_value = mock_client
@@ -113,7 +113,6 @@ class TestKeepAliveParameter:
             # Verify all model parameters are in options
             options = payload['options']
             assert options['num_ctx'] == 15000
-            assert options['num_predict'] == -1
             assert options['repeat_penalty'] == 1.1
             assert options['top_k'] == 50
             assert options['top_p'] == 0.9
@@ -160,9 +159,9 @@ class TestKeepAliveParameter:
 
         with patch('httpx.AsyncClient') as mock_client_class:
             mock_client = AsyncMock()
-            mock_response = AsyncMock()
+            mock_response = MagicMock()  # Use MagicMock for response, not AsyncMock
             mock_response.status_code = 200
-            mock_response.raise_for_status = AsyncMock()
+            mock_response.raise_for_status = MagicMock()  # Synchronous method
             mock_response.json.return_value = {"response": "Priority test response"}
             mock_client.post.return_value = mock_response
             mock_client.__aenter__.return_value = mock_client

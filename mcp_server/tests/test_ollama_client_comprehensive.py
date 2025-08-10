@@ -191,9 +191,9 @@ class TestOllamaClientComprehensive:
         with patch('httpx.AsyncClient') as mock_native_client_class:
             # Setup native API mock for model loading and completion
             mock_native_client = AsyncMock()
-            mock_native_response = AsyncMock()
+            mock_native_response = MagicMock()  # Use MagicMock for response, not AsyncMock
             mock_native_response.status_code = 200
-            mock_native_response.raise_for_status = AsyncMock()
+            mock_native_response.raise_for_status = MagicMock()  # Synchronous method
             mock_native_response.json.return_value = {
                 "response": "Integration test response from native API",
                 "done": True
@@ -276,9 +276,9 @@ class TestOllamaClientComprehensive:
         with patch('httpx.AsyncClient') as mock_native_client_class:
             # Setup native API mock to return a proper response (not empty)
             mock_native_client = AsyncMock()
-            mock_native_response = AsyncMock()
+            mock_native_response = MagicMock()  # Use MagicMock for response, not AsyncMock
             mock_native_response.status_code = 200
-            mock_native_response.raise_for_status = AsyncMock()
+            mock_native_response.raise_for_status = MagicMock()  # Synchronous method
             mock_native_response.json.return_value = {
                 "response": "Processed episode content with entities and relationships extracted.",
                 "done": True
@@ -329,9 +329,6 @@ class TestOllamaClientComprehensive:
     async def test_create_completion_with_model_parameters(self, mock_openai_client, llm_config, model_parameters):
         """Test regular completion with model parameters."""
         # Setup
-        expected_response = MagicMock()
-        mock_openai_client.chat.completions.create.return_value = expected_response
-
         client = OllamaClient(
             config=llm_config,
             client=mock_openai_client,
@@ -344,32 +341,53 @@ class TestOllamaClientComprehensive:
         temperature = 0.7
         max_tokens = 500
 
-        # Execute
-        result = await client._create_completion(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
+        # Mock httpx.AsyncClient since _create_completion makes direct HTTP calls
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = AsyncMock()
+            mock_response = MagicMock()  # Use MagicMock for response, not AsyncMock
+            mock_response.status_code = 200
+            mock_response.raise_for_status = MagicMock()  # Synchronous method
+            mock_response.json.return_value = {"response": "Test response"}
+            mock_client.post.return_value = mock_response
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+            mock_client_class.return_value = mock_client
 
-        # Verify
-        assert result == expected_response
-        mock_openai_client.chat.completions.create.assert_called_once_with(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            response_format={"type": "json_object"},
-            extra_body=model_parameters
-        )
+            # Execute
+            result = await client._create_completion(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+
+            # Verify the result
+            assert result is not None
+            assert hasattr(result, 'choices')
+            assert len(result.choices) == 1
+            assert result.choices[0].message.content == "Test response"
+            assert result.model == model
+
+            # Verify the HTTP call was made with correct parameters
+            mock_client.post.assert_called_once()
+            call_args = mock_client.post.call_args
+            assert call_args[0][0].endswith("/api/generate")
+            payload = call_args[1]['json']
+            assert payload['model'] == model
+            # Verify base model parameters are included
+            assert payload['options']['num_ctx'] == model_parameters['num_ctx']
+            assert payload['options']['repeat_penalty'] == model_parameters['repeat_penalty']
+            assert payload['options']['top_k'] == model_parameters['top_k']
+            assert payload['options']['top_p'] == model_parameters['top_p']
+            assert payload['options']['seed'] == model_parameters['seed']
+            # Verify parameter overrides work
+            assert payload['options']['temperature'] == temperature
+            assert payload['options']['num_predict'] == max_tokens
 
     @pytest.mark.asyncio
     async def test_create_completion_without_model_parameters(self, mock_openai_client, llm_config):
         """Test regular completion without model parameters."""
         # Setup
-        expected_response = MagicMock()
-        mock_openai_client.chat.completions.create.return_value = expected_response
-
         client = OllamaClient(
             config=llm_config,
             client=mock_openai_client,
@@ -382,24 +400,42 @@ class TestOllamaClientComprehensive:
         temperature = 0.7
         max_tokens = 500
 
-        # Execute
-        result = await client._create_completion(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            response_model=MockResponseModel
-        )
+        # Mock httpx.AsyncClient since _create_completion makes direct HTTP calls
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = AsyncMock()
+            mock_response = MagicMock()  # Use MagicMock for response, not AsyncMock
+            mock_response.status_code = 200
+            mock_response.raise_for_status = MagicMock()  # Synchronous method
+            mock_response.json.return_value = {"response": "Test response"}
+            mock_client.post.return_value = mock_response
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+            mock_client_class.return_value = mock_client
 
-        # Verify - should not include extra_body when no model parameters
-        assert result == expected_response
-        mock_openai_client.chat.completions.create.assert_called_once_with(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            response_format={"type": "json_object"}
-        )
+            # Execute
+            result = await client._create_completion(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_model=MockResponseModel
+            )
+
+            # Verify the result
+            assert result is not None
+            assert hasattr(result, 'choices')
+            assert len(result.choices) == 1
+            assert result.choices[0].message.content == "Test response"
+            assert result.model == model
+
+            # Verify the HTTP call was made with empty options since no model parameters
+            mock_client.post.assert_called_once()
+            call_args = mock_client.post.call_args
+            assert call_args[0][0].endswith("/api/generate")
+            payload = call_args[1]['json']
+            assert payload['model'] == model
+            assert payload['options']['temperature'] == temperature
+            assert payload['options']['num_predict'] == max_tokens
 
     def test_ollama_client_model_parameters_property(self, llm_config, model_parameters):
         """Test that model parameters are accessible as a property."""
@@ -429,9 +465,6 @@ class TestOllamaClientComprehensive:
     async def test_create_completion_with_response_model(self, mock_openai_client, llm_config, model_parameters):
         """Test completion with response model parameter."""
         # Setup
-        expected_response = MagicMock()
-        mock_openai_client.chat.completions.create.return_value = expected_response
-
         client = OllamaClient(
             config=llm_config,
             client=mock_openai_client,
@@ -444,25 +477,50 @@ class TestOllamaClientComprehensive:
         temperature = 0.7
         max_tokens = 500
 
-        # Execute with response_model (should be ignored in regular completion)
-        result = await client._create_completion(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            response_model=MockResponseModel
-        )
+        # Mock httpx.AsyncClient since _create_completion makes direct HTTP calls
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = AsyncMock()
+            mock_response = MagicMock()  # Use MagicMock for response, not AsyncMock
+            mock_response.status_code = 200
+            mock_response.raise_for_status = MagicMock()  # Synchronous method
+            mock_response.json.return_value = {"response": "Test response"}
+            mock_client.post.return_value = mock_response
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+            mock_client_class.return_value = mock_client
 
-        # Verify
-        assert result == expected_response
-        mock_openai_client.chat.completions.create.assert_called_once_with(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            response_format={"type": "json_object"},
-            extra_body=model_parameters
-        )
+            # Execute with response_model (should be ignored in regular completion)
+            result = await client._create_completion(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_model=MockResponseModel
+            )
+
+            # Verify the result
+            assert result is not None
+            assert hasattr(result, 'choices')
+            assert len(result.choices) == 1
+            assert result.choices[0].message.content == "Test response"
+            assert result.model == model
+
+            # Verify the HTTP call was made with correct parameters
+            # Note: response_model should be ignored in regular completion
+            mock_client.post.assert_called_once()
+            call_args = mock_client.post.call_args
+            assert call_args[0][0].endswith("/api/generate")
+            payload = call_args[1]['json']
+            assert payload['model'] == model
+            # Verify base model parameters are included
+            assert payload['options']['num_ctx'] == model_parameters['num_ctx']
+            assert payload['options']['repeat_penalty'] == model_parameters['repeat_penalty']
+            assert payload['options']['top_k'] == model_parameters['top_k']
+            assert payload['options']['top_p'] == model_parameters['top_p']
+            assert payload['options']['seed'] == model_parameters['seed']
+            # Verify parameter overrides work
+            assert payload['options']['temperature'] == temperature
+            assert payload['options']['num_predict'] == max_tokens
 
     def test_ollama_client_with_complex_model_parameters(self, llm_config):
         """Test OllamaClient with complex nested model parameters."""
@@ -496,9 +554,9 @@ class TestOllamaClientComprehensive:
         with patch('httpx.AsyncClient') as mock_client_class:
             # Setup mock response
             mock_client = AsyncMock()
-            mock_response = AsyncMock()
+            mock_response = MagicMock()  # Use MagicMock for response, not AsyncMock
             mock_response.status_code = 200
-            mock_response.raise_for_status = AsyncMock()
+            mock_response.raise_for_status = MagicMock()  # Synchronous method
             mock_response.json.return_value = {
                 "model": "test_model",
                 "response": "Test response from native API",
@@ -541,7 +599,13 @@ class TestOllamaClientComprehensive:
             assert payload['model'] == "test_model"
             assert payload['prompt'] == "User: test message"
             assert payload['stream'] is False
-            assert payload['options'] == model_parameters
+            # Verify base model parameters are included
+            assert payload['options']['num_ctx'] == model_parameters['num_ctx']
+            assert payload['options']['repeat_penalty'] == model_parameters['repeat_penalty']
+            assert payload['options']['top_k'] == model_parameters['top_k']
+            assert payload['options']['top_p'] == model_parameters['top_p']
+            assert payload['options']['seed'] == model_parameters['seed']
+            # Verify parameter overrides work
             assert payload['options']['temperature'] == 0.7
             assert payload['options']['num_predict'] == 500
 
@@ -586,9 +650,9 @@ class TestOllamaClientComprehensive:
 
         with patch('httpx.AsyncClient') as mock_client_class:
             mock_client = AsyncMock()
-            mock_response = AsyncMock()
+            mock_response = MagicMock()  # Use MagicMock for response, not AsyncMock
             mock_response.status_code = 200
-            mock_response.raise_for_status = AsyncMock()
+            mock_response.raise_for_status = MagicMock()  # Synchronous method
             mock_response.json.return_value = {"model": "test", "response": "test", "done": True}
             mock_client.post.return_value = mock_response
             mock_client.__aenter__.return_value = mock_client
@@ -627,9 +691,9 @@ class TestOllamaClientComprehensive:
         with patch('httpx.AsyncClient') as mock_client_class:
             # Setup mock
             mock_client = AsyncMock()
-            mock_response = AsyncMock()
+            mock_response = MagicMock()  # Use MagicMock for response, not AsyncMock
             mock_response.status_code = 200
-            mock_response.raise_for_status = AsyncMock()
+            mock_response.raise_for_status = MagicMock()  # Synchronous method
             mock_response.json.return_value = {"response": "Test completion response"}
             mock_client.post.return_value = mock_response
             mock_client.__aenter__.return_value = mock_client
@@ -673,9 +737,9 @@ class TestOllamaClientComprehensive:
         with patch('httpx.AsyncClient') as mock_client_class:
             # Setup mock
             mock_client = AsyncMock()
-            mock_response = AsyncMock()
+            mock_response = MagicMock()  # Use MagicMock for response, not AsyncMock
             mock_response.status_code = 200
-            mock_response.raise_for_status = AsyncMock()
+            mock_response.raise_for_status = MagicMock()  # Synchronous method
             mock_response.json.return_value = {"response": "Test response"}
             mock_client.post.return_value = mock_response
             mock_client.__aenter__.return_value = mock_client
@@ -723,9 +787,9 @@ class TestOllamaClientComprehensive:
             with patch('httpx.AsyncClient') as mock_client_class:
                 # Setup mock
                 mock_client = AsyncMock()
-                mock_response = AsyncMock()
+                mock_response = MagicMock()  # Use MagicMock for response, not AsyncMock
                 mock_response.status_code = 200
-                mock_response.raise_for_status = AsyncMock()
+                mock_response.raise_for_status = MagicMock()  # Synchronous method
                 mock_response.json.return_value = {"response": "Test response"}
                 mock_client.post.return_value = mock_response
                 mock_client.__aenter__.return_value = mock_client
@@ -759,9 +823,9 @@ class TestOllamaClientComprehensive:
 
         with patch('httpx.AsyncClient') as mock_client_class:
             mock_client = AsyncMock()
-            mock_response = AsyncMock()
+            mock_response = MagicMock()  # Use MagicMock for response, not AsyncMock
             mock_response.status_code = 200
-            mock_response.raise_for_status = AsyncMock()
+            mock_response.raise_for_status = MagicMock()  # Synchronous method
             mock_response.json.return_value = {"model": "test", "response": "test", "done": True}
             mock_client.post.return_value = mock_response
             mock_client.__aenter__.return_value = mock_client

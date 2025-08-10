@@ -113,17 +113,22 @@ async def proxy_sse(request: Request):
         # Handle SSE streaming
         # Stream the response without buffering
         async def generate():
-            # Create httpx client inside the generator to ensure it stays alive
-            # Configure timeout for SSE connections (no read timeout for streaming)
-            timeout = httpx.Timeout(connect=10.0, read=None, write=10.0, pool=10.0)
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                async with client.stream("GET", mcp_url, headers=headers, params=request.query_params) as response:
-                    async for chunk in response.aiter_bytes():
-                        yield chunk
+            try:
+                # Create httpx client inside the generator to ensure it stays alive
+                # Configure timeout for SSE connections (no read timeout for streaming)
+                timeout = httpx.Timeout(connect=10.0, read=None, write=10.0, pool=10.0)
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    async with client.stream("GET", mcp_url, headers=headers, params=request.query_params) as response:
+                        async for chunk in response.aiter_bytes():
+                            yield chunk
+            except (httpx.ConnectError, httpx.ReadTimeout, httpx.TimeoutException, Exception) as e:
+                logger.error(f"Error in SSE streaming: {e}")
+                # Yield an SSE error event
+                yield b"event: error\ndata: Internal server error\n\n"
 
         # Ensure proper SSE headers
         sse_headers = {
-            "Content-Type": "text/event-stream",
+            "Content-Type": "text/event-stream; charset=utf-8",
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
@@ -136,20 +141,27 @@ async def proxy_sse(request: Request):
         )
     else:
         # Handle POST requests
-        timeout = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0)
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            body = await request.body()
-            response = await client.post(
-                mcp_url,
-                headers=headers,
-                content=body,
-                follow_redirects=True
-            )
+        try:
+            timeout = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                body = await request.body()
+                response = await client.post(
+                    mcp_url,
+                    headers=headers,
+                    content=body,
+                    follow_redirects=True
+                )
 
-            return Response(
-                content=response.content,
-                status_code=response.status_code,
-                headers=dict(response.headers)
+                return Response(
+                    content=response.content,
+                    status_code=response.status_code,
+                    headers=dict(response.headers)
+                )
+        except (httpx.ConnectError, httpx.ReadTimeout, httpx.TimeoutException) as e:
+            logger.error(f"Error in SSE POST request: {e}")
+            return JSONResponse(
+                {"error": "internal_server_error", "message": "MCP server unavailable"},
+                status_code=500
             )
 
 
@@ -165,21 +177,28 @@ async def proxy_messages(request: Request):
     headers.pop('host', None)  # Remove host header
 
     # Handle POST requests
-    timeout = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0)
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        body = await request.body()
-        response = await client.post(
-            mcp_url,
-            headers=headers,
-            content=body,
-            params=request.query_params,
-            follow_redirects=True
-        )
+    try:
+        timeout = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            body = await request.body()
+            response = await client.post(
+                mcp_url,
+                headers=headers,
+                content=body,
+                params=request.query_params,
+                follow_redirects=True
+            )
 
-        return Response(
-            content=response.content,
-            status_code=response.status_code,
-            headers=dict(response.headers)
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                headers=dict(response.headers)
+            )
+    except (httpx.ConnectError, httpx.ReadTimeout, httpx.TimeoutException) as e:
+        logger.error(f"Error in messages proxy: {e}")
+        return JSONResponse(
+            {"error": "internal_server_error", "message": "MCP server unavailable"},
+            status_code=500
         )
 
 

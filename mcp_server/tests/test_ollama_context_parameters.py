@@ -54,6 +54,11 @@ class TestOllamaContextParameters:
             with open(config_file, 'w') as f:
                 yaml.dump(sample_context_config, f)
 
+            # Ensure no local override file exists in test environment
+            local_config_file = providers_dir / 'ollama.local.yml'
+            if local_config_file.exists():
+                local_config_file.unlink()
+
             # Temporarily override the config loader's config directory
             original_config_dir = config_loader.config_dir
             config_loader.config_dir = config_dir
@@ -61,8 +66,10 @@ class TestOllamaContextParameters:
             try:
                 os.environ['USE_OLLAMA'] = 'true'
 
-                # Load configuration
-                llm_config = GraphitiLLMConfig.from_yaml_and_env()
+                # Patch the module-level config_loader to use our test instance
+                with patch('src.graphiti_mcp_server.config_loader', config_loader):
+                    # Load configuration
+                    llm_config = GraphitiLLMConfig.from_yaml_and_env()
 
                 # Verify all parameters are loaded
                 assert llm_config.ollama_model_parameters['num_ctx'] == 12000
@@ -88,14 +95,21 @@ class TestOllamaContextParameters:
             with open(config_file, 'w') as f:
                 yaml.dump(sample_context_config, f)
 
+            # Ensure no local override file exists in test environment
+            local_config_file = providers_dir / 'ollama.local.yml'
+            if local_config_file.exists():
+                local_config_file.unlink()
+
             original_config_dir = config_loader.config_dir
             config_loader.config_dir = config_dir
 
             try:
                 os.environ['USE_OLLAMA'] = 'true'
 
-                llm_config = GraphitiLLMConfig.from_yaml_and_env()
-                client = llm_config.create_client()
+                # Patch the module-level config_loader to use our test instance
+                with patch('src.graphiti_mcp_server.config_loader', config_loader):
+                    llm_config = GraphitiLLMConfig.from_yaml_and_env()
+                    client = llm_config.create_client()
 
                 # Verify client setup
                 assert client.__class__.__name__ == 'OllamaClient'
@@ -123,21 +137,28 @@ class TestOllamaContextParameters:
             with open(config_file, 'w') as f:
                 yaml.dump(sample_context_config, f)
 
+            # Ensure no local override file exists in test environment
+            local_config_file = providers_dir / 'ollama.local.yml'
+            if local_config_file.exists():
+                local_config_file.unlink()
+
             original_config_dir = config_loader.config_dir
             config_loader.config_dir = config_dir
 
             try:
                 os.environ['USE_OLLAMA'] = 'true'
 
-                llm_config = GraphitiLLMConfig.from_yaml_and_env()
-                client = llm_config.create_client()
+                # Patch the module-level config_loader to use our test instance
+                with patch('src.graphiti_mcp_server.config_loader', config_loader):
+                    llm_config = GraphitiLLMConfig.from_yaml_and_env()
+                    client = llm_config.create_client()
 
                 # Mock the native API call
                 with patch('httpx.AsyncClient') as mock_client_class:
                     mock_client = AsyncMock()
-                    mock_response = AsyncMock()
+                    mock_response = MagicMock()
                     mock_response.status_code = 200
-                    mock_response.raise_for_status = AsyncMock()
+                    mock_response.raise_for_status = MagicMock()
                     mock_response.json.return_value = {
                         "model": "gpt-oss:latest",
                         "response": "Test response with correct context",
@@ -173,7 +194,7 @@ class TestOllamaContextParameters:
                     options = payload['options']
                     assert options['num_ctx'] == 12000
                     assert options['num_threads'] == 40
-                    assert options['num_predict'] == -1
+                    assert options['num_predict'] == 100  # max_tokens parameter overrides config
                     assert options['repeat_penalty'] == 1.1
                     assert options['top_k'] == 50
                     assert options['top_p'] == 0.9
@@ -210,9 +231,9 @@ class TestOllamaContextParameters:
 
             with patch('httpx.AsyncClient') as mock_client_class:
                 mock_client = AsyncMock()
-                mock_response = AsyncMock()
+                mock_response = MagicMock()
                 mock_response.status_code = 200
-                mock_response.raise_for_status = AsyncMock()
+                mock_response.raise_for_status = MagicMock()
                 mock_response.json.return_value = {"model": "test", "response": "test", "done": True}
                 mock_client.post.return_value = mock_response
                 mock_client.__aenter__.return_value = mock_client
@@ -250,9 +271,9 @@ class TestOllamaContextParameters:
 
         with patch('httpx.AsyncClient') as mock_client_class:
             mock_client = AsyncMock()
-            mock_response = AsyncMock()
+            mock_response = MagicMock()
             mock_response.status_code = 200
-            mock_response.raise_for_status = AsyncMock()
+            mock_response.raise_for_status = MagicMock()
             mock_response.json.return_value = {"model": "test", "response": "test", "done": True}
             mock_client.post.return_value = mock_response
             mock_client.__aenter__.return_value = mock_client

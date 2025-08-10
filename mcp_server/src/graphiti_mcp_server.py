@@ -119,11 +119,15 @@ class GraphitiLLMConfig(BaseModel):
                 logger.warning(f"Failed to load Ollama YAML configuration: {e}")
                 llm_config = {}
 
-            # Use YAML config values with fallback to defaults
-            ollama_base_url = llm_config.get('base_url', 'http://localhost:11434/v1')
-            ollama_llm_model = llm_config.get('model', DEFAULT_LLM_MODEL)
-            temperature = llm_config.get('temperature', 0.0)
-            max_tokens = llm_config.get('max_tokens', 8192)
+            # Use YAML config values with fallback to defaults, then override with environment variables
+            ollama_base_url = config_loader.get_env_value('OLLAMA_BASE_URL',
+                                                        llm_config.get('base_url', 'http://localhost:11434/v1'))
+            ollama_llm_model = config_loader.get_env_value('OLLAMA_LLM_MODEL',
+                                                         llm_config.get('model', DEFAULT_LLM_MODEL))
+            temperature = config_loader.get_env_value('LLM_TEMPERATURE',
+                                                    llm_config.get('temperature', 0.0), float)
+            max_tokens = config_loader.get_env_value('LLM_MAX_TOKENS',
+                                                   llm_config.get('max_tokens', 8192), int)
 
             # Get Ollama model parameters from YAML
             ollama_model_parameters = llm_config.get('model_parameters', {})

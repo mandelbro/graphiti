@@ -2,7 +2,7 @@
 
 import os
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from src.graphiti_mcp_server import GraphitiLLMConfig
 
@@ -59,7 +59,11 @@ class TestMaxTokensConfig:
         # Mock the LLMConfig to capture the parameters
         with patch('src.graphiti_mcp_server.LLMConfig') as mock_llm_config:
             with patch('src.graphiti_mcp_server.OpenAIClient') as mock_client:
-                mock_llm_config.return_value = mock_llm_config
+                # Create a mock LLMConfig instance with required attributes
+                mock_config_instance = MagicMock()
+                mock_config_instance.api_key = "test_key"
+                mock_config_instance.base_url = "http://localhost:11434/v1"
+                mock_llm_config.return_value = mock_config_instance
                 mock_client.return_value = mock_client
 
                 # Call create_client

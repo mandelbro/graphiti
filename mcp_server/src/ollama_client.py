@@ -103,7 +103,7 @@ class OllamaClient(BaseOpenAIClient):
             "model": model,
             "prompt": prompt,
             "stream": False,
-            "options": self.model_parameters if self.model_parameters else {}
+            "options": self.model_parameters.copy() if self.model_parameters else {}
         }
 
         # Add keep_alive if specified in model_parameters
