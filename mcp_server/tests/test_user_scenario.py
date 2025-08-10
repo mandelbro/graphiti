@@ -12,6 +12,8 @@ import pytest
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from src.models import ErrorResponse
+
 
 @pytest.fixture(autouse=True)
 def setup_environment():
@@ -42,9 +44,8 @@ class TestUserScenario:
         result = await search_memory_nodes(**user_payload)
 
         # Should return error about Graphiti client not being initialized (expected)
-        assert isinstance(result, dict)
-        assert 'error' in result
-        assert 'Graphiti client not initialized' in result['error']
+        assert isinstance(result, ErrorResponse)
+        assert 'Graphiti client not initialized' in result.error
 
     @pytest.mark.asyncio
     async def test_search_memory_nodes_minimal_payload(self):
@@ -59,9 +60,8 @@ class TestUserScenario:
         result = await search_memory_nodes(**minimal_payload)
 
         # Should return error about Graphiti client not being initialized (expected)
-        assert isinstance(result, dict)
-        assert 'error' in result
-        assert 'Graphiti client not initialized' in result['error']
+        assert isinstance(result, ErrorResponse)
+        assert 'Graphiti client not initialized' in result.error
 
     @pytest.mark.asyncio
     async def test_search_memory_nodes_with_optional_params(self):
@@ -98,9 +98,8 @@ class TestUserScenario:
             result = await search_memory_nodes(**test_case)
 
             # Should return error about Graphiti client not being initialized (expected)
-            assert isinstance(result, dict)
-            assert 'error' in result
-            assert 'Graphiti client not initialized' in result['error']
+            assert isinstance(result, ErrorResponse)
+            assert 'Graphiti client not initialized' in result.error
 
     def test_function_signature_compatibility(self):
         """Test that the function signature is compatible with MCP framework."""
@@ -216,10 +215,9 @@ class TestErrorHandling:
         result = await search_memory_nodes(**user_payload)
 
         # Check error response structure
-        assert isinstance(result, dict)
-        assert 'error' in result
-        assert isinstance(result['error'], str)
-        assert len(result['error']) > 0
+        assert isinstance(result, ErrorResponse)
+        assert isinstance(result.error, str)
+        assert len(result.error) > 0
 
     @pytest.mark.asyncio
     async def test_error_message_content(self):
@@ -233,7 +231,7 @@ class TestErrorHandling:
         result = await search_memory_nodes(**user_payload)
 
         # Check that error message is informative
-        error_message = result['error']
+        error_message = result.error
         assert 'Graphiti client not initialized' in error_message
         assert len(error_message) > 20  # Should be descriptive
 

@@ -190,26 +190,26 @@ class TestMCPServerTypes:
 
         # Test that all response types can be instantiated
         error_response = ErrorResponse(error="test error")
-        assert error_response['error'] == "test error"
+        assert error_response.error == "test error"
 
         success_response = SuccessResponse(message="test message")
-        assert success_response['message'] == "test message"
+        assert success_response.message == "test message"
 
         node_search_response = NodeSearchResponse(message="test", nodes=[])
-        assert node_search_response['message'] == "test"
-        assert node_search_response['nodes'] == []
+        assert node_search_response.message == "test"
+        assert node_search_response.nodes == []
 
         fact_search_response = FactSearchResponse(message="test", facts=[])
-        assert fact_search_response['message'] == "test"
-        assert fact_search_response['facts'] == []
+        assert fact_search_response.message == "test"
+        assert fact_search_response.facts == []
 
         episode_search_response = EpisodeSearchResponse(message="test", episodes=[])
-        assert episode_search_response['message'] == "test"
-        assert episode_search_response['episodes'] == []
+        assert episode_search_response.message == "test"
+        assert episode_search_response.episodes == []
 
         status_response = StatusResponse(status="ok", message="test")
-        assert status_response['status'] == "ok"
-        assert status_response['message'] == "test"
+        assert status_response.status == "ok"
+        assert status_response.message == "test"
 
     def test_entity_types(self):
         """Test that entity types are properly defined."""

@@ -14,6 +14,8 @@ import pytest
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from src.models import NodeResult, NodeSearchResponse, ErrorResponse
+
 
 @pytest.fixture(autouse=True)
 def setup_environment():
@@ -146,9 +148,8 @@ class TestMCPToolParameterValidation:
             try:
                 result = await search_memory_nodes(**test_case)
                 # Should return error about Graphiti client not being initialized
-                assert isinstance(result, dict)
-                assert 'error' in result
-                assert 'Graphiti client not initialized' in result['error']
+                assert isinstance(result, ErrorResponse)
+                assert 'Graphiti client not initialized' in result.error
             except Exception as e:
                 # Any other exception should be related to missing dependencies, not parameter validation
                 assert 'Graphiti' in str(e) or 'Neo4j' in str(e) or 'Ollama' in str(e)
@@ -178,9 +179,8 @@ class TestMCPToolParameterValidation:
             try:
                 result = await search_memory_facts(**test_case)
                 # Should return error about Graphiti client not being initialized
-                assert isinstance(result, dict)
-                assert 'error' in result
-                assert 'Graphiti client not initialized' in result['error']
+                assert isinstance(result, ErrorResponse)
+                assert 'Graphiti client not initialized' in result.error
             except Exception as e:
                 # Any other exception should be related to missing dependencies, not parameter validation
                 assert 'Graphiti' in str(e) or 'Neo4j' in str(e) or 'Ollama' in str(e)
@@ -212,9 +212,8 @@ class TestMCPToolParameterValidation:
             try:
                 result = await add_memory(**test_case)
                 # Should return error about Graphiti client not being initialized
-                assert isinstance(result, dict)
-                assert 'error' in result
-                assert 'Graphiti client not initialized' in result['error']
+                assert isinstance(result, ErrorResponse)
+                assert 'Graphiti client not initialized' in result.error
             except Exception as e:
                 # Any other exception should be related to missing dependencies, not parameter validation
                 assert 'Graphiti' in str(e) or 'Neo4j' in str(e) or 'Ollama' in str(e)
@@ -244,9 +243,8 @@ class TestMCPToolParameterValidation:
             try:
                 result = await get_episodes(**test_case)
                 # Should return error about Graphiti client not being initialized
-                assert isinstance(result, dict)
-                assert 'error' in result
-                assert 'Graphiti client not initialized' in result['error']
+                assert isinstance(result, ErrorResponse)
+                assert 'Graphiti client not initialized' in result.error
             except Exception as e:
                 # Any other exception should be related to missing dependencies, not parameter validation
                 assert 'Graphiti' in str(e) or 'Neo4j' in str(e) or 'Ollama' in str(e)
@@ -269,9 +267,8 @@ class TestMCPToolErrorHandling:
         result = await search_memory_nodes(**user_payload)
 
         # Should return error about Graphiti client not being initialized (expected)
-        assert isinstance(result, dict)
-        assert 'error' in result
-        assert 'Graphiti client not initialized' in result['error']
+        assert isinstance(result, ErrorResponse)
+        assert 'Graphiti client not initialized' in result.error
 
     @pytest.mark.asyncio
     async def test_tool_error_responses(self):
@@ -294,9 +291,8 @@ class TestMCPToolErrorHandling:
 
         for tool_func, params in tools_to_test:
             result = await tool_func(**params)
-            assert isinstance(result, dict)
-            assert 'error' in result
-            assert 'Graphiti client not initialized' in result['error']
+            assert isinstance(result, ErrorResponse)
+            assert 'Graphiti client not initialized' in result.error
 
 
 class TestMCPToolTypeCompatibility:
@@ -330,12 +326,10 @@ class TestMCPToolTypeCompatibility:
         assert 'List' in str(group_ids_param.annotation)
 
     def test_typeddict_compatibility(self):
-        """Test that TypedDict definitions are compatible."""
-        from graphiti_mcp_server import NodeSearchResponse, ErrorResponse, NodeResult
-
-        # Test that TypedDict classes can be instantiated
+        """Test that Pydantic model definitions are compatible."""
+        # Test that Pydantic model classes can be instantiated
         error_response = ErrorResponse(error="test error")
-        assert error_response['error'] == "test error"
+        assert error_response.error == "test error"
 
         node_result = NodeResult(
             uuid="test-uuid",
@@ -346,15 +340,15 @@ class TestMCPToolTypeCompatibility:
             created_at="2023-01-01T00:00:00Z",
             attributes={}
         )
-        assert node_result['uuid'] == "test-uuid"
-        assert isinstance(node_result['labels'], list)
+        assert node_result.uuid == "test-uuid"
+        assert isinstance(node_result.labels, list)
 
         node_search_response = NodeSearchResponse(
             message="test message",
             nodes=[node_result]
         )
-        assert node_search_response['message'] == "test message"
-        assert len(node_search_response['nodes']) == 1
+        assert node_search_response.message == "test message"
+        assert len(node_search_response.nodes) == 1
 
 
 if __name__ == "__main__":

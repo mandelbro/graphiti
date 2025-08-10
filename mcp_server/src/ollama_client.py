@@ -96,7 +96,7 @@ class OllamaClient(BaseOpenAIClient):
         prompt = self._messages_to_prompt(messages)
 
         # Use native Ollama API with parameters
-        native_url = self.ollama_base_url.replace("/v1", "")
+        native_url = self.ollama_base_url.replace("/v1", "").rstrip("/")
         api_url = f"{native_url}/api/generate"
 
         payload = {
