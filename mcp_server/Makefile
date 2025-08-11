@@ -30,6 +30,10 @@ lint:
 	$(RUFF) check
 	$(PYRIGHT) .
 
+lint-file:
+	$(RUFF) check $(FILE)
+	$(PYRIGHT) $(FILE)
+
 # Run tests
 test:
 	$(PYTEST) $(if $(ARGS),$(ARGS),)

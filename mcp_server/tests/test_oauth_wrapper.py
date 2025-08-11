@@ -13,8 +13,8 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-from oauth_wrapper import OAUTH_CONFIG, app
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+from src.oauth_wrapper import OAUTH_CONFIG, app
 
 
 class TestOAuthWrapper:
@@ -77,7 +77,10 @@ class TestOAuthWrapper:
 
         # Verify required fields
         assert data["resource"] == OAUTH_CONFIG["issuer"]
-        assert data["oauth_authorization_server"] == f"{OAUTH_CONFIG['issuer']}/.well-known/oauth-authorization-server"
+        assert (
+            data["oauth_authorization_server"]
+            == f"{OAUTH_CONFIG['issuer']}/.well-known/oauth-authorization-server"
+        )
         assert "header" in data["bearer_methods_supported"]
         assert "RS256" in data["resource_signing_alg_values_supported"]
 
@@ -85,7 +88,7 @@ class TestOAuthWrapper:
         """Test successful client registration"""
         client_data = {
             "client_name": "Test Client",
-            "redirect_uris": ["http://localhost:3000/callback"]
+            "redirect_uris": ["http://localhost:3000/callback"],
         }
 
         response = client.post("/register", json=client_data)
@@ -125,27 +128,35 @@ class TestOAuthWrapper:
 
                 # Create a proper async context manager for stream
                 mock_stream_response = AsyncMock()
+
                 # Make aiter_bytes return an async iterator directly
                 async def mock_aiter_bytes():
                     async for chunk in self._async_generator([b"data: test\n\n"]):
                         yield chunk
+
                 mock_stream_response.aiter_bytes = mock_aiter_bytes
 
                 # Create an async context manager that directly returns the response
                 class AsyncStreamContextManager:
                     async def __aenter__(self):
                         return mock_stream_response
+
                     async def __aexit__(self, exc_type, exc_val, exc_tb):
                         pass
 
                 # Make stream return the async context manager directly
-                mock_instance.stream = MagicMock(return_value=AsyncStreamContextManager())
+                mock_instance.stream = MagicMock(
+                    return_value=AsyncStreamContextManager()
+                )
 
                 response = client.get("/sse")
 
                 # Verify the response headers
                 assert response.status_code == 200
-                assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+                assert (
+                    response.headers["content-type"]
+                    == "text/event-stream; charset=utf-8"
+                )
                 assert response.headers["cache-control"] == "no-cache"
 
     @pytest.mark.asyncio
@@ -157,22 +168,25 @@ class TestOAuthWrapper:
 
         def mock_client_init(*args, **kwargs):
             nonlocal captured_timeout
-            captured_timeout = kwargs.get('timeout')
+            captured_timeout = kwargs.get("timeout")
             mock_instance = AsyncMock()
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_instance.__aexit__ = AsyncMock(return_value=None)
 
             # Create a proper async context manager for stream
             mock_stream_response = AsyncMock()
+
             # Make aiter_bytes return an async iterator directly
             async def mock_aiter_bytes():
                 async for chunk in self._async_generator([b"data: test\n\n"]):
                     yield chunk
+
             mock_stream_response.aiter_bytes = mock_aiter_bytes
 
             class AsyncStreamContextManager:
                 async def __aenter__(self):
                     return mock_stream_response
+
                 async def __aexit__(self, exc_type, exc_val, exc_tb):
                     pass
 
@@ -183,7 +197,7 @@ class TestOAuthWrapper:
         with TestClient(app) as client:
             with patch("oauth_wrapper.httpx.AsyncClient", side_effect=mock_client_init):
                 # Make the request
-                response = client.get("/sse")
+                client.get("/sse")
 
                 # Verify timeout configuration
                 assert captured_timeout is not None
@@ -219,7 +233,7 @@ class TestOAuthWrapper:
 
         def mock_client_init(*args, **kwargs):
             nonlocal captured_timeout
-            captured_timeout = kwargs.get('timeout')
+            captured_timeout = kwargs.get("timeout")
             mock_instance = AsyncMock()
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_instance.__aexit__ = AsyncMock(return_value=None)
@@ -234,7 +248,7 @@ class TestOAuthWrapper:
             return mock_instance
 
         with patch("oauth_wrapper.httpx.AsyncClient", side_effect=mock_client_init):
-            response = client.post("/sse", json=test_body)
+            client.post("/sse", json=test_body)
 
             # Verify timeout configuration
             assert captured_timeout is not None
@@ -270,7 +284,7 @@ class TestOAuthWrapper:
 
         def mock_client_init(*args, **kwargs):
             nonlocal captured_timeout
-            captured_timeout = kwargs.get('timeout')
+            captured_timeout = kwargs.get("timeout")
             mock_instance = AsyncMock()
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_instance.__aexit__ = AsyncMock(return_value=None)
@@ -285,7 +299,7 @@ class TestOAuthWrapper:
             return mock_instance
 
         with patch("oauth_wrapper.httpx.AsyncClient", side_effect=mock_client_init):
-            response = client.post("/messages/?session_id=123", json=test_body)
+            client.post("/messages/?session_id=123", json=test_body)
 
             # Verify timeout configuration
             assert captured_timeout is not None
@@ -298,7 +312,7 @@ class TestOAuthWrapper:
         """Test that headers are properly forwarded in SSE proxy"""
         test_headers = {
             "authorization": "Bearer test-token",
-            "x-custom-header": "custom-value"
+            "x-custom-header": "custom-value",
         }
 
         # Track the headers that were passed to httpx
@@ -309,15 +323,18 @@ class TestOAuthWrapper:
             captured_headers = kwargs.get("headers", {})
             # Return a mock stream context manager
             mock_stream_response = AsyncMock()
+
             # Make aiter_bytes return an async iterator directly
             async def mock_aiter_bytes():
                 async for chunk in self._async_generator([b"data: test\n\n"]):
                     yield chunk
+
             mock_stream_response.aiter_bytes = mock_aiter_bytes
 
             class AsyncStreamContextManager:
                 async def __aenter__(self):
                     return mock_stream_response
+
                 async def __aexit__(self, exc_type, exc_val, exc_tb):
                     pass
 
@@ -339,13 +356,17 @@ class TestOAuthWrapper:
         with patch("oauth_wrapper.httpx.AsyncClient") as mock_client_class:
             # Create a mock instance that raises an error on enter
             mock_instance = AsyncMock()
-            mock_instance.__aenter__.side_effect = httpx.ConnectError("Connection failed")
+            mock_instance.__aenter__.side_effect = httpx.ConnectError(
+                "Connection failed"
+            )
             mock_client_class.return_value = mock_instance
 
             # SSE streaming returns 200 OK but yields an error event
             response = client.get("/sse")
             assert response.status_code == 200
-            assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+            assert (
+                response.headers["content-type"] == "text/event-stream; charset=utf-8"
+            )
             # Check that the response contains an error event
             response_text = response.text
             assert "event: error" in response_text
@@ -360,7 +381,9 @@ class TestOAuthWrapper:
             # SSE streaming returns 200 OK but yields an error event
             response = client.get("/sse")
             assert response.status_code == 200
-            assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+            assert (
+                response.headers["content-type"] == "text/event-stream; charset=utf-8"
+            )
             # Check that the response contains an error event
             response_text = response.text
             assert "event: error" in response_text
@@ -386,15 +409,18 @@ class TestOAuthWrapper:
 
             # Create a proper async context manager for stream
             mock_stream_response = AsyncMock()
+
             # Make aiter_bytes return an async iterator directly
             async def mock_aiter_bytes():
                 async for chunk in self._async_generator([b"data: test\n\n"]):
                     yield chunk
+
             mock_stream_response.aiter_bytes = mock_aiter_bytes
 
             class AsyncStreamContextManager:
                 async def __aenter__(self):
                     return mock_stream_response
+
                 async def __aexit__(self, exc_type, exc_val, exc_tb):
                     pass
 
@@ -404,7 +430,9 @@ class TestOAuthWrapper:
             response = client.get("/sse")
 
             # Verify SSE-specific headers
-            assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+            assert (
+                response.headers["content-type"] == "text/event-stream; charset=utf-8"
+            )
             assert response.headers["cache-control"] == "no-cache"
             assert response.headers["x-accel-buffering"] == "no"
             assert response.headers["connection"] == "keep-alive"
@@ -415,22 +443,25 @@ class TestOAuthWrapper:
 
         def mock_client_init(*args, **kwargs):
             nonlocal captured_timeout
-            captured_timeout = kwargs.get('timeout')
+            captured_timeout = kwargs.get("timeout")
             mock_instance = AsyncMock()
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_instance.__aexit__ = AsyncMock(return_value=None)
 
             # Create a proper async context manager for stream
             mock_stream_response = AsyncMock()
+
             # Make aiter_bytes return an async iterator directly
             async def mock_aiter_bytes():
                 async for chunk in self._async_generator([b"data: test\n\n"]):
                     yield chunk
+
             mock_stream_response.aiter_bytes = mock_aiter_bytes
 
             class AsyncStreamContextManager:
                 async def __aenter__(self):
                     return mock_stream_response
+
                 async def __aexit__(self, exc_type, exc_val, exc_tb):
                     pass
 
@@ -444,7 +475,9 @@ class TestOAuthWrapper:
             # This is the critical assertion - read timeout MUST be None for SSE
             # to prevent the original ReadTimeout error
             assert captured_timeout is not None
-            assert captured_timeout.read is None, "SSE connections must have no read timeout to prevent ReadTimeout errors"
+            assert captured_timeout.read is None, (
+                "SSE connections must have no read timeout to prevent ReadTimeout errors"
+            )
             assert response.status_code == 200
 
     def test_timeout_regression_post_requests(self, mock_env, client):
@@ -453,7 +486,7 @@ class TestOAuthWrapper:
 
         def mock_client_init(*args, **kwargs):
             nonlocal captured_timeout
-            captured_timeout = kwargs.get('timeout')
+            captured_timeout = kwargs.get("timeout")
             mock_instance = AsyncMock()
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_instance.__aexit__ = AsyncMock(return_value=None)
@@ -472,7 +505,9 @@ class TestOAuthWrapper:
 
             # POST requests should have a reasonable read timeout (not default 5s)
             assert captured_timeout is not None
-            assert captured_timeout.read == 30.0, "POST requests need sufficient read timeout to handle slow responses"
+            assert captured_timeout.read == 30.0, (
+                "POST requests need sufficient read timeout to handle slow responses"
+            )
             assert response.status_code == 200
 
     async def _async_generator(self, items):

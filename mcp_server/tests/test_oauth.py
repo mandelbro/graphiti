@@ -6,14 +6,13 @@ Test script for OAuth endpoints using FastAPI TestClient
 import json
 import os
 import sys
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 # Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-from oauth_wrapper import app
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+from src.oauth_wrapper import app
 
 
 class TestOAuthEndpoints:
@@ -59,7 +58,7 @@ class TestOAuthEndpoints:
         print("\n🔍 Testing client registration:")
         client_data = {
             "client_name": "Test OAuth Client",
-            "redirect_uris": ["http://localhost:3000/callback"]
+            "redirect_uris": ["http://localhost:3000/callback"],
         }
         response = client.post("/register", json=client_data)
         print(f"   Status: {response.status_code}")
@@ -105,18 +104,21 @@ def test_oauth_endpoints():
     response = client.get("/.well-known/oauth-authorization-server")
     print(f"   Status: {response.status_code}")
     assert response.status_code == 200
-    print(f"   ✅ OAuth server metadata available")
+    print("   ✅ OAuth server metadata available")
 
     # Test OAuth protected resource metadata
     print("\n2. Testing OAuth protected resource metadata:")
     response = client.get("/.well-known/oauth-protected-resource")
     print(f"   Status: {response.status_code}")
     assert response.status_code == 200
-    print(f"   ✅ Protected resource metadata available")
+    print("   ✅ Protected resource metadata available")
 
     # Test client registration
     print("\n3. Testing client registration:")
-    client_data = {"client_name": "Test OAuth Client", "redirect_uris": ["http://localhost:3000/callback"]}
+    client_data = {
+        "client_name": "Test OAuth Client",
+        "redirect_uris": ["http://localhost:3000/callback"],
+    }
     response = client.post("/register", json=client_data)
     print(f"   Status: {response.status_code}")
     assert response.status_code == 201

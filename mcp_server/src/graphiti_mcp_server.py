@@ -42,6 +42,9 @@ from src.models import (
     FactSearchResponse,
     NodeResult,
     NodeSearchResponse,
+    Preference,
+    Procedure,
+    Requirement,
     StatusResponse,
     SuccessResponse,
 )
@@ -806,9 +809,11 @@ async def initialize_graphiti():
         # Destroy graph if requested
         if config.destroy_graph:
             logger.info("Destroying graph...")
+            assert graphiti_client is not None
             await clear_data(graphiti_client.driver)
 
         # Initialize the graph database with Graphiti's indices
+        assert graphiti_client is not None
         await graphiti_client.build_indices_and_constraints()
         logger.info("Graphiti client initialized successfully")
 
@@ -1489,6 +1494,38 @@ def main():
     except Exception as e:
         logger.error(f"Error initializing Graphiti MCP server: {str(e)}")
         raise
+
+
+# Export all the symbols that should be available when importing this module
+__all__ = [
+    # MCP server instance
+    "mcp",
+    # Tool functions
+    "search_memory_nodes",
+    "search_memory_facts",
+    "add_memory",
+    "get_episodes",
+    "delete_entity_edge",
+    "delete_episode",
+    "get_entity_edge",
+    "clear_graph",
+    # Configuration classes
+    "GraphitiConfig",
+    "GraphitiLLMConfig",
+    "GraphitiEmbedderConfig",
+    "Neo4jConfig",
+    # Response models
+    "ErrorResponse",
+    "SuccessResponse",
+    "NodeSearchResponse",
+    "FactSearchResponse",
+    "EpisodeSearchResponse",
+    "StatusResponse",
+    # Entity types
+    "Preference",
+    "Procedure",
+    "Requirement",
+]
 
 
 if __name__ == "__main__":

@@ -71,7 +71,11 @@ class ConfigLoader:
 
         try:
             with open(full_path, encoding="utf-8") as file:
-                config = yaml.safe_load(file) or {}
+                config = yaml.safe_load(file)
+                # Ensure we always return a dictionary
+                if not isinstance(config, dict):
+                    logger.warning(f"Configuration file {full_path} does not contain a dictionary, returning empty dict")
+                    return {}
                 logger.debug(f"Loaded configuration from {full_path}")
                 return config
         except Exception as e:
