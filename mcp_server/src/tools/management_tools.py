@@ -9,6 +9,9 @@ from typing import Any, cast
 from graphiti_core import Graphiti
 from graphiti_core.edges import EntityEdge
 
+# Import configuration types
+from src.config import GraphitiConfig
+
 # Import response models from the models package
 from src.models.response_models import (
     EpisodeSearchResponse,
@@ -23,10 +26,10 @@ logger = logging.getLogger(__name__)
 
 # Global variables (set by main server)
 graphiti_client: Graphiti | None = None
-config = None
+config: GraphitiConfig | None = None
 
 
-def set_globals(client: Graphiti, configuration):
+def set_globals(client: Graphiti | None, configuration: GraphitiConfig):
     """Set global variables for use by tool functions."""
     global graphiti_client, config
     graphiti_client = client
@@ -76,6 +79,9 @@ async def get_episodes(
 
     if graphiti_client is None:
         return ErrorResponse(error="Graphiti client not initialized")
+
+    if config is None:
+        return ErrorResponse(error="Configuration not initialized")
 
     try:
         # Use the provided group_id or fall back to the default from config

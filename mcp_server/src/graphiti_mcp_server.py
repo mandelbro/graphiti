@@ -37,24 +37,36 @@ from src.models import (
 )
 
 # Import tools from the tools package
-from src.tools import management_tools, memory_tools
-from src.tools import search_memory_facts as search_tools_search_memory_facts
-from src.tools import search_memory_nodes as search_tools_search_memory_nodes
+from src.tools import (
+    add_memory as tools_add_memory,
+)
+from src.tools import (
+    clear_graph as tools_clear_graph,
+)
+from src.tools import (
+    delete_entity_edge as tools_delete_entity_edge,
+)
+from src.tools import (
+    delete_episode as tools_delete_episode,
+)
+from src.tools import (
+    get_entity_edge as tools_get_entity_edge,
+)
+from src.tools import (
+    get_episodes as tools_get_episodes,
+)
+from src.tools import (
+    get_status as tools_get_status,
+)
+from src.tools import (
+    search_memory_facts as tools_search_memory_facts,
+)
+from src.tools import (
+    search_memory_nodes as tools_search_memory_nodes,
+)
 
 load_dotenv()
 
-
-# Server configuration classes
-# The configuration system has a hierarchy:
-# - GraphitiConfig is the top-level configuration
-#   - LLMConfig handles all OpenAI/LLM related settings
-#   - EmbedderConfig manages embedding settings
-#   - Neo4jConfig manages database connection details
-#   - Various other settings like group_id and feature flags
-# Configuration values are loaded from:
-# 1. Default values in the class definitions
-# 2. Environment variables (loaded via load_dotenv())
-# 3. Command line arguments (which override environment variables)
 
 # Configure logging
 logging.basicConfig(
@@ -69,33 +81,16 @@ config = GraphitiConfig()
 
 # MCP server instructions
 GRAPHITI_MCP_INSTRUCTIONS = """
-Graphiti is a memory service for AI agents built on a knowledge graph. Graphiti performs well
-with dynamic data such as user interactions, changing enterprise data, and external information.
-
-Graphiti transforms information into a richly connected knowledge network, allowing you to
-capture relationships between concepts, entities, and information. The system organizes data as episodes
-(content snippets), nodes (entities), and facts (relationships between entities), creating a dynamic,
-queryable memory store that evolves with new information. Graphiti supports multiple data formats, including
-structured JSON data, enabling seamless integration with existing data pipelines and systems.
-
-Facts contain temporal metadata, allowing you to track the time of creation and whether a fact is invalid
-(superseded by new information).
+Graphiti is a memory service for AI agents built on a knowledge graph that transforms information into a richly connected network of episodes (content), nodes (entities), and facts (relationships). It supports text, JSON, and message formats with temporal metadata tracking.
 
 Key capabilities:
-1. Add episodes (text, messages, or JSON) to the knowledge graph with the add_memory tool
-2. Search for nodes (entities) in the graph using natural language queries with search_nodes
-3. Find relevant facts (relationships between entities) with search_facts
-4. Retrieve specific entity edges or episodes by UUID
-5. Manage the knowledge graph with tools like delete_episode, delete_entity_edge, and clear_graph
+1. Add episodes with add_memory tool
+2. Search nodes with search_memory_nodes
+3. Find facts with search_memory_facts
+4. Manage data with delete/clear operations
+5. Retrieve specific entities/episodes by UUID
 
-The server connects to a database for persistent storage and uses language models for certain operations.
-Each piece of information is organized by group_id, allowing you to maintain separate knowledge domains.
-
-When adding information, provide descriptive names and detailed content to improve search quality.
-When searching, use specific queries and consider filtering by group_id for more relevant results.
-
-For optimal performance, ensure the database is properly configured and accessible, and valid
-API keys are provided for any language model operations.
+Organized by group_id for separate knowledge domains. Requires proper database configuration and API keys.
 """
 
 # MCP server instance
@@ -109,7 +104,7 @@ default_port = int(os.environ.get("MCP_SERVER_PORT", "8020"))
 mcp.settings.port = default_port
 
 
-# Register memory tools with MCP decorators
+# Register MCP tools as simple wrappers around imported tool functions
 @mcp.tool()
 async def add_memory(
     name: str,
@@ -120,7 +115,7 @@ async def add_memory(
     uuid: str | None = None,
 ) -> SuccessResponse | ErrorResponse:
     """Add an episode to memory. This is the primary way to add information to the graph."""
-    return await memory_tools.add_memory(
+    return await tools_add_memory(
         name, episode_body, group_id, source, source_description, uuid
     )
 
@@ -133,12 +128,8 @@ async def search_memory_nodes(
     center_node_uuid: str | None = None,
     entity: str = "",
 ) -> NodeSearchResponse | ErrorResponse:
-    return await search_tools_search_memory_nodes(
-        query=query,
-        group_ids=group_ids,
-        max_nodes=max_nodes,
-        center_node_uuid=center_node_uuid,
-        entity=entity,
+    return await tools_search_memory_nodes(
+        query, group_ids, max_nodes, center_node_uuid, entity
     )
 
 
@@ -149,66 +140,53 @@ async def search_memory_facts(
     max_facts: int = 10,
     center_node_uuid: str | None = None,
 ) -> FactSearchResponse | ErrorResponse:
-    return await search_tools_search_memory_facts(
-        query=query,
-        group_ids=group_ids,
-        max_facts=max_facts,
-        center_node_uuid=center_node_uuid,
+    return await tools_search_memory_facts(
+        query, group_ids, max_facts, center_node_uuid
     )
 
 
 @mcp.tool()
 async def delete_entity_edge(uuid: str) -> SuccessResponse | ErrorResponse:
-    """Delete an entity edge from the graph memory."""
-    return await memory_tools.delete_entity_edge(uuid)
+    return await tools_delete_entity_edge(uuid)
 
 
 @mcp.tool()
 async def delete_episode(uuid: str) -> SuccessResponse | ErrorResponse:
-    """Delete an episode from the graph memory."""
-    return await memory_tools.delete_episode(uuid)
+    return await tools_delete_episode(uuid)
 
 
 @mcp.tool()
 async def get_entity_edge(uuid: str) -> dict[str, Any] | ErrorResponse:
-    """Get an entity edge from the graph memory by its UUID."""
-    return await management_tools.get_entity_edge(uuid)
+    return await tools_get_entity_edge(uuid)
 
 
 @mcp.tool()
 async def get_episodes(
     group_id: str | None = None, last_n: int = 10
 ) -> list[dict[str, Any]] | EpisodeSearchResponse | ErrorResponse:
-    """Get the most recent memory episodes for a specific group."""
-    return await management_tools.get_episodes(group_id, last_n)
+    return await tools_get_episodes(group_id, last_n)
 
 
 @mcp.tool()
 async def clear_graph() -> SuccessResponse | ErrorResponse:
-    """Clear all data from the graph memory and rebuild indices."""
-    return await memory_tools.clear_graph()
+    return await tools_clear_graph()
 
 
 @mcp.resource("http://graphiti/status")
 async def get_status() -> StatusResponse:
-    """Get the status of the Graphiti MCP server and Neo4j connection."""
-    return await management_tools.get_status()
+    return await tools_get_status()
 
 
 def main():
-    """Main function to run the Graphiti MCP server."""
     try:
-        # Run everything in a single event loop
         asyncio.run(run_mcp_server(mcp))
     except Exception as e:
         logger.error(f"Error initializing Graphiti MCP server: {str(e)}")
         raise
 
 
-# Export all the symbols that should be available when importing this module
 __all__ = [
-    # MCP server instance
-    "mcp",
+    "mcp",  # MCP server instance
     # Tool functions
     "search_memory_nodes",
     "search_memory_facts",
@@ -218,6 +196,7 @@ __all__ = [
     "delete_episode",
     "get_entity_edge",
     "clear_graph",
+    "get_status",
     # Configuration classes
     "GraphitiConfig",
     "GraphitiLLMConfig",
