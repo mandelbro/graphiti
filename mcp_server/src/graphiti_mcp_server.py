@@ -3,18 +3,13 @@
 Graphiti MCP Server - Exposes Graphiti functionality through the Model Context Protocol (MCP)
 """
 
-import argparse
 import asyncio
 import logging
 import os
 import sys
-from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
 
 from dotenv import load_dotenv
-from graphiti_core import Graphiti
-from graphiti_core.edges import EntityEdge
-from graphiti_core.utils.maintenance.graph_data_operations import clear_data
 from mcp.server.fastmcp import FastMCP
 
 # Import configuration classes
@@ -22,9 +17,11 @@ from src.config import (
     GraphitiConfig,
     GraphitiEmbedderConfig,
     GraphitiLLMConfig,
-    MCPConfig,
     Neo4jConfig,
 )
+
+# Import initialization functions
+from src.initialization import run_mcp_server
 
 # Import model definitions from the models package
 from src.models import (
@@ -39,26 +36,12 @@ from src.models import (
     SuccessResponse,
 )
 
-# Import memory tools from the tools package
-from src.tools import memory_tools
+# Import tools from the tools package
+from src.tools import management_tools, memory_tools
 from src.tools import search_memory_facts as search_tools_search_memory_facts
 from src.tools import search_memory_nodes as search_tools_search_memory_nodes
-from src.tools import search_tools as search_tools_module
-
-# Import utilities from the utils package
-from src.utils import format_fact_result
 
 load_dotenv()
-
-
-DEFAULT_LLM_MODEL = "deepseek-r1:7b"
-SMALL_LLM_MODEL = "deepseek-r1:7b"
-DEFAULT_EMBEDDER_MODEL = "nomic-embed-text"
-
-# Semaphore limit for concurrent Graphiti operations.
-# Decrease this if you're experiencing 429 rate limit errors from your LLM provider.
-# Increase if you have high rate limits.
-SEMAPHORE_LIMIT = int(os.getenv("SEMAPHORE_LIMIT", 10))
 
 
 # Server configuration classes
@@ -125,111 +108,6 @@ mcp = FastMCP(
 default_port = int(os.environ.get("MCP_SERVER_PORT", "8020"))
 mcp.settings.port = default_port
 
-# Initialize Graphiti client
-graphiti_client: Graphiti | None = None
-
-
-async def initialize_graphiti():
-    """Initialize the Graphiti client with the configured settings."""
-    global graphiti_client, config
-
-    try:
-        # Validate Ollama configuration if using Ollama
-        if config.llm.use_ollama:
-            if (
-                not config.llm.ollama_llm_model
-                or not config.llm.ollama_llm_model.strip()
-            ):
-                raise ValueError(
-                    "OLLAMA_LLM_MODEL must be set when using Ollama for LLM"
-                )
-            logger.info(f"Validated Ollama LLM model: {config.llm.ollama_llm_model}")
-
-        if config.embedder.use_ollama:
-            if (
-                not config.embedder.ollama_embedding_model
-                or not config.embedder.ollama_embedding_model.strip()
-            ):
-                raise ValueError(
-                    "OLLAMA_EMBEDDING_MODEL must be set when using Ollama for embeddings"
-                )
-            logger.info(
-                f"Validated Ollama embedding model: {config.embedder.ollama_embedding_model}"
-            )
-
-        # Create LLM client if possible
-        llm_client = config.llm.create_client()
-        if not llm_client and config.use_custom_entities:
-            # If custom entities are enabled, we must have an LLM client
-            raise ValueError(
-                "OPENAI_API_KEY must be set when custom entities are enabled"
-            )
-
-        # Validate Neo4j configuration
-        if not config.neo4j.uri or not config.neo4j.user or not config.neo4j.password:
-            raise ValueError("NEO4J_URI, NEO4J_USER, and NEO4J_PASSWORD must be set")
-
-        embedder_client = config.embedder.create_client()
-
-        # Initialize Graphiti client
-        graphiti_client = Graphiti(
-            uri=config.neo4j.uri,
-            user=config.neo4j.user,
-            password=config.neo4j.password,
-            llm_client=llm_client,
-            embedder=embedder_client,
-            max_coroutines=SEMAPHORE_LIMIT,
-        )
-
-        # Destroy graph if requested
-        if config.destroy_graph:
-            logger.info("Destroying graph...")
-            assert graphiti_client is not None
-            await clear_data(graphiti_client.driver)
-
-        # Initialize the graph database with Graphiti's indices
-        assert graphiti_client is not None
-        await graphiti_client.build_indices_and_constraints()
-        logger.info("Graphiti client initialized successfully")
-
-        # Log configuration details for transparency
-        if llm_client:
-            if config.llm.use_ollama:
-                logger.info(f"Using Ollama LLM model: {config.llm.ollama_llm_model}")
-            else:
-                logger.info(f"Using OpenAI/Azure OpenAI model: {config.llm.model}")
-            logger.info(f"Using temperature: {config.llm.temperature}")
-        else:
-            logger.info("No LLM client configured - entity extraction will be limited")
-
-        if embedder_client:
-            if config.embedder.use_ollama:
-                logger.info(
-                    f"Using Ollama embedding model: {config.embedder.ollama_embedding_model}"
-                )
-            else:
-                logger.info(
-                    f"Using OpenAI/Azure OpenAI embedding model: {config.embedder.model}"
-                )
-        else:
-            logger.info(
-                "No embedder client configured - embeddings will not be available"
-            )
-
-        logger.info(f"Using group_id: {config.group_id}")
-        logger.info(
-            f"Custom entity extraction: {'enabled' if config.use_custom_entities else 'disabled'}"
-        )
-        logger.info(f"Using concurrency limit: {SEMAPHORE_LIMIT}")
-
-        # Set globals for memory tools
-        memory_tools.set_globals(graphiti_client, config)
-        search_tools_module.set_globals(graphiti_client, config)
-
-    except Exception as e:
-        logger.error(f"Failed to initialize Graphiti: {str(e)}")
-        raise
-
 
 # Register memory tools with MCP decorators
 @mcp.tool()
@@ -293,87 +171,16 @@ async def delete_episode(uuid: str) -> SuccessResponse | ErrorResponse:
 
 @mcp.tool()
 async def get_entity_edge(uuid: str) -> dict[str, Any] | ErrorResponse:
-    """Get an entity edge from the graph memory by its UUID.
-
-    Args:
-        uuid: UUID of the entity edge to retrieve
-    """
-    global graphiti_client
-
-    if graphiti_client is None:
-        return ErrorResponse(error="Graphiti client not initialized")
-
-    try:
-        # We've already checked that graphiti_client is not None above
-        assert graphiti_client is not None
-
-        # Use cast to help the type checker understand that graphiti_client is not None
-        client = cast(Graphiti, graphiti_client)
-
-        # Get the entity edge directly using the EntityEdge class method
-        entity_edge = await EntityEdge.get_by_uuid(client.driver, uuid)
-
-        # Use the format_fact_result function to serialize the edge
-        # Return the Python dict directly - MCP will handle serialization
-        return format_fact_result(entity_edge)
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Error getting entity edge: {error_msg}")
-        return ErrorResponse(error=f"Error getting entity edge: {error_msg}")
+    """Get an entity edge from the graph memory by its UUID."""
+    return await management_tools.get_entity_edge(uuid)
 
 
 @mcp.tool()
 async def get_episodes(
     group_id: str | None = None, last_n: int = 10
 ) -> list[dict[str, Any]] | EpisodeSearchResponse | ErrorResponse:
-    """Get the most recent memory episodes for a specific group.
-
-    Args:
-        group_id: ID of the group to retrieve episodes from. If not provided, uses the default group_id.
-        last_n: Number of most recent episodes to retrieve (default: 10)
-    """
-    global graphiti_client
-
-    if graphiti_client is None:
-        return ErrorResponse(error="Graphiti client not initialized")
-
-    try:
-        # Use the provided group_id or fall back to the default from config
-        effective_group_id = group_id if group_id is not None else config.group_id
-
-        if not isinstance(effective_group_id, str):
-            return ErrorResponse(error="Group ID must be a string")
-
-        # We've already checked that graphiti_client is not None above
-        assert graphiti_client is not None
-
-        # Use cast to help the type checker understand that graphiti_client is not None
-        client = cast(Graphiti, graphiti_client)
-
-        episodes = await client.retrieve_episodes(
-            group_ids=[effective_group_id],
-            last_n=last_n,
-            reference_time=datetime.now(UTC),
-        )
-
-        if not episodes:
-            return EpisodeSearchResponse(
-                message=f"No episodes found for group {effective_group_id}", episodes=[]
-            )
-
-        # Use Pydantic's model_dump method for EpisodicNode serialization
-        formatted_episodes = [
-            # Use mode='json' to handle datetime serialization
-            episode.model_dump(mode="json")
-            for episode in episodes
-        ]
-
-        # Return the Python list directly - MCP will handle serialization
-        return formatted_episodes
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Error getting episodes: {error_msg}")
-        return ErrorResponse(error=f"Error getting episodes: {error_msg}")
+    """Get the most recent memory episodes for a specific group."""
+    return await management_tools.get_episodes(group_id, last_n)
 
 
 @mcp.tool()
@@ -385,185 +192,14 @@ async def clear_graph() -> SuccessResponse | ErrorResponse:
 @mcp.resource("http://graphiti/status")
 async def get_status() -> StatusResponse:
     """Get the status of the Graphiti MCP server and Neo4j connection."""
-    global graphiti_client
-
-    if graphiti_client is None:
-        return StatusResponse(status="error", message="Graphiti client not initialized")
-
-    try:
-        # We've already checked that graphiti_client is not None above
-        assert graphiti_client is not None
-
-        # Use cast to help the type checker understand that graphiti_client is not None
-        client = cast(Graphiti, graphiti_client)
-
-        # Test database connection
-        await client.driver.client.verify_connectivity()  # type: ignore
-
-        return StatusResponse(
-            status="ok", message="Graphiti MCP server is running and connected to Neo4j"
-        )
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Error checking Neo4j connection: {error_msg}")
-        return StatusResponse(
-            status="error",
-            message=f"Graphiti MCP server is running but Neo4j connection failed: {error_msg}",
-        )
-
-
-async def initialize_server() -> MCPConfig:
-    """Parse CLI arguments and initialize the Graphiti server configuration."""
-    global config
-
-    parser = argparse.ArgumentParser(
-        description="Run the Graphiti MCP server with optional LLM client"
-    )
-    parser.add_argument(
-        "--group-id",
-        help="Namespace for the graph. This is an arbitrary string used to organize related data. "
-        "If not provided, a random UUID will be generated.",
-    )
-    parser.add_argument(
-        "--transport",
-        choices=["sse", "stdio"],
-        default="sse",
-        help="Transport to use for communication with the client. (default: sse)",
-    )
-    parser.add_argument(
-        "--model",
-        help=f"Model name to use with the LLM client. (default: {DEFAULT_LLM_MODEL})",
-    )
-    parser.add_argument(
-        "--small-model",
-        help=f"Small model name to use with the LLM client. (default: {SMALL_LLM_MODEL})",
-    )
-    parser.add_argument(
-        "--temperature",
-        type=float,
-        help="Temperature setting for the LLM (0.0-2.0). Lower values make output more deterministic. (default: 0.7)",
-    )
-    parser.add_argument(
-        "--max-tokens",
-        type=int,
-        help="Maximum tokens for LLM responses (default: 8192)",
-    )
-    parser.add_argument(
-        "--destroy-graph", action="store_true", help="Destroy all Graphiti graphs"
-    )
-    parser.add_argument(
-        "--use-custom-entities",
-        action="store_true",
-        help="Enable entity extraction using the predefined ENTITY_TYPES",
-    )
-    parser.add_argument(
-        "--host",
-        default=os.environ.get("MCP_SERVER_HOST"),
-        help="Host to bind the MCP server to (default: MCP_SERVER_HOST environment variable)",
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=int(os.environ.get("MCP_SERVER_PORT", "8020")),
-        help="Port to bind the MCP server to (default: MCP_SERVER_PORT environment variable or 8020)",
-    )
-    # Ollama configuration arguments
-    parser.add_argument(
-        "--use-ollama",
-        type=lambda x: x.lower() == "true",
-        help="Use Ollama for LLM and embeddings (default: true)",
-    )
-    parser.add_argument(
-        "--ollama-base-url",
-        help="Ollama base URL (default: http://localhost:11434/v1)",
-    )
-    parser.add_argument(
-        "--ollama-llm-model",
-        help=f"Ollama LLM model name (default: {DEFAULT_LLM_MODEL})",
-    )
-    parser.add_argument(
-        "--ollama-embedding-model",
-        help=f"Ollama embedding model name (default: {DEFAULT_EMBEDDER_MODEL})",
-    )
-    parser.add_argument(
-        "--ollama-embedding-dim",
-        type=int,
-        help="Ollama embedding dimension (default: 768)",
-    )
-
-    args = parser.parse_args()
-
-    # Build configuration from CLI arguments and environment variables
-    config = GraphitiConfig.from_cli_and_env(args)
-
-    # Log the group ID configuration
-    if args.group_id:
-        logger.info(f"Using provided group_id: {config.group_id}")
-    else:
-        logger.info(f"Generated random group_id: {config.group_id}")
-
-    # Log entity extraction configuration
-    if config.use_custom_entities:
-        logger.info("Entity extraction enabled using predefined ENTITY_TYPES")
-    else:
-        logger.info("Entity extraction disabled (no custom entities will be used)")
-
-    # Log LLM configuration
-    if config.llm.use_ollama:
-        logger.info(f"Using Ollama LLM: {config.llm.ollama_llm_model}")
-        logger.info(f"Ollama base URL: {config.llm.ollama_base_url}")
-        logger.info(f"LLM temperature: {config.llm.temperature}")
-        logger.info(f"LLM max tokens: {config.llm.max_tokens}")
-    else:
-        logger.info(f"Using OpenAI/Azure OpenAI LLM: {config.llm.model}")
-        logger.info(f"LLM temperature: {config.llm.temperature}")
-        logger.info(f"LLM max tokens: {config.llm.max_tokens}")
-
-    # Log embedder configuration
-    if config.embedder.use_ollama:
-        logger.info(f"Using Ollama embedder: {config.embedder.ollama_embedding_model}")
-        logger.info(f"Embedding dimension: {config.embedder.ollama_embedding_dim}")
-    else:
-        logger.info(f"Using OpenAI/Azure OpenAI embedder: {config.embedder.model}")
-
-    # Initialize Graphiti
-    await initialize_graphiti()
-
-    if args.host:
-        logger.info(f"Setting MCP server host to: {args.host}")
-        # Set MCP server host from CLI or env
-        mcp.settings.host = args.host
-
-    if args.port:
-        logger.info(f"Setting MCP server port to: {args.port}")
-        # Set MCP server port from CLI or env
-        mcp.settings.port = args.port
-
-    # Return MCP configuration
-    return MCPConfig.from_cli(args)
-
-
-async def run_mcp_server():
-    """Run the MCP server in the current event loop."""
-    # Initialize the server
-    mcp_config = await initialize_server()
-
-    # Run the server with stdio transport for MCP in the same event loop
-    logger.info(f"Starting MCP server with transport: {mcp_config.transport}")
-    if mcp_config.transport == "stdio":
-        await mcp.run_stdio_async()
-    elif mcp_config.transport == "sse":
-        logger.info(
-            f"Running MCP server with SSE transport on {mcp.settings.host}:{mcp.settings.port}"
-        )
-        await mcp.run_sse_async()
+    return await management_tools.get_status()
 
 
 def main():
     """Main function to run the Graphiti MCP server."""
     try:
         # Run everything in a single event loop
-        asyncio.run(run_mcp_server())
+        asyncio.run(run_mcp_server(mcp))
     except Exception as e:
         logger.error(f"Error initializing Graphiti MCP server: {str(e)}")
         raise
