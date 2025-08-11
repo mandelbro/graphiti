@@ -13,8 +13,8 @@ import pytest
 import yaml
 from graphiti_core.llm_client.config import LLMConfig
 
-from src.config_loader import ConfigLoader
 from src.config.llm_config import GraphitiLLMConfig
+from src.config_loader import ConfigLoader
 from src.ollama_client import OllamaClient
 
 # Create a config_loader instance for the tests

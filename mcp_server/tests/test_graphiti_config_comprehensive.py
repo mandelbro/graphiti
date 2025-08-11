@@ -251,9 +251,13 @@ class TestGraphitiConfigComprehensive:
 
         # Should be OllamaClient
         assert client.__class__.__name__ == "OllamaClient"
-        assert hasattr(client, "model_parameters") or hasattr(client, "ollama_model_parameters")
+        assert hasattr(client, "model_parameters") or hasattr(
+            client, "ollama_model_parameters"
+        )
         # Prefer attribute access, fallback to property if needed
-        model_params = getattr(client, "model_parameters", None) or getattr(client, "ollama_model_parameters", None)
+        model_params = getattr(client, "model_parameters", None) or getattr(
+            client, "ollama_model_parameters", None
+        )
         assert model_params is not None
         assert model_params["num_ctx"] == 8192
 

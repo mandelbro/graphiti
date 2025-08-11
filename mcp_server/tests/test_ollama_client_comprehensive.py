@@ -114,7 +114,10 @@ class TestOllamaClientComprehensive:
 
         # Test data
         model = "test_model"
-        messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "test message"}])
+        messages = cast(
+            list[ChatCompletionMessageParam],
+            [{"role": "user", "content": "test message"}],
+        )
         temperature = 0.7
         max_tokens = 500
 
@@ -158,7 +161,10 @@ class TestOllamaClientComprehensive:
 
         # Test data
         model = "test_model"
-        messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "test message"}])
+        messages = cast(
+            list[ChatCompletionMessageParam],
+            [{"role": "user", "content": "test message"}],
+        )
         temperature = 0.7
         max_tokens = 500
 
@@ -210,7 +216,10 @@ class TestOllamaClientComprehensive:
 
             # Test data
             model = "integration_test_model"
-            messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "Integration test message"}])
+            messages = cast(
+                list[ChatCompletionMessageParam],
+                [{"role": "user", "content": "Integration test message"}],
+            )
             temperature = 0.2
             max_tokens = 200
 
@@ -249,7 +258,10 @@ class TestOllamaClientComprehensive:
 
         # Test data
         model = "error_test_model"
-        messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "Error test message"}])
+        messages = cast(
+            list[ChatCompletionMessageParam],
+            [{"role": "user", "content": "Error test message"}],
+        )
 
         # Execute and verify exception is propagated
         with pytest.raises(Exception) as exc_info:
@@ -298,16 +310,19 @@ class TestOllamaClientComprehensive:
             mock_native_client_class.return_value = mock_native_client
 
             # Simulate Graphiti episode processing call
-            messages = cast(list[ChatCompletionMessageParam], [
-                {
-                    "role": "system",
-                    "content": "Extract entities and relationships from the following episode content.",
-                },
-                {
-                    "role": "user",
-                    "content": "User Documentation Standards Preference: The user prefers clear, concise documentation.",
-                },
-            ])
+            messages = cast(
+                list[ChatCompletionMessageParam],
+                [
+                    {
+                        "role": "system",
+                        "content": "Extract entities and relationships from the following episode content.",
+                    },
+                    {
+                        "role": "user",
+                        "content": "User Documentation Standards Preference: The user prefers clear, concise documentation.",
+                    },
+                ],
+            )
 
             # Execute structured completion (as Graphiti would do)
             result = await client._create_structured_completion(
@@ -353,7 +368,10 @@ class TestOllamaClientComprehensive:
 
         # Test data
         model = "test_model"
-        messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "test message"}])
+        messages = cast(
+            list[ChatCompletionMessageParam],
+            [{"role": "user", "content": "test message"}],
+        )
         temperature = 0.7
         max_tokens = 500
 
@@ -417,7 +435,10 @@ class TestOllamaClientComprehensive:
 
         # Test data
         model = "test_model"
-        messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "test message"}])
+        messages = cast(
+            list[ChatCompletionMessageParam],
+            [{"role": "user", "content": "test message"}],
+        )
         temperature = 0.7
         max_tokens = 500
 
@@ -495,7 +516,10 @@ class TestOllamaClientComprehensive:
 
         # Test data
         model = "test_model"
-        messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "test message"}])
+        messages = cast(
+            list[ChatCompletionMessageParam],
+            [{"role": "user", "content": "test message"}],
+        )
         temperature = 0.7
         max_tokens = 500
 
@@ -591,7 +615,10 @@ class TestOllamaClientComprehensive:
 
             # Test data
             model = "test_model"
-            messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "test message"}])
+            messages = cast(
+                list[ChatCompletionMessageParam],
+                [{"role": "user", "content": "test message"}],
+            )
             temperature = 0.7
             max_tokens = 500
 
@@ -640,12 +667,15 @@ class TestOllamaClientComprehensive:
         client = OllamaClient(config=llm_config)
 
         # Test various message types
-        messages = cast(list[ChatCompletionMessageParam], [
-            {"role": "system", "content": "You are a helpful assistant"},
-            {"role": "user", "content": "Hello, how are you?"},
-            {"role": "assistant", "content": "I'm doing well, thank you!"},
-            {"role": "user", "content": "What's the weather like?"},
-        ])
+        messages = cast(
+            list[ChatCompletionMessageParam],
+            [
+                {"role": "system", "content": "You are a helpful assistant"},
+                {"role": "user", "content": "Hello, how are you?"},
+                {"role": "assistant", "content": "I'm doing well, thank you!"},
+                {"role": "user", "content": "What's the weather like?"},
+            ],
+        )
 
         prompt = client._messages_to_prompt(messages)
         expected = (
@@ -717,7 +747,10 @@ class TestOllamaClientComprehensive:
             mock_client_class.return_value = mock_client
 
             # Test completion
-            messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "Test message"}])
+            messages = cast(
+                list[ChatCompletionMessageParam],
+                [{"role": "user", "content": "Test message"}],
+            )
             await client._create_completion(
                 model="test-model", messages=messages, temperature=0.5, max_tokens=100
             )
@@ -756,7 +789,10 @@ class TestOllamaClientComprehensive:
             mock_client_class.return_value = mock_client
 
             # Test completion
-            messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "Test message"}])
+            messages = cast(
+                list[ChatCompletionMessageParam],
+                [{"role": "user", "content": "Test message"}],
+            )
             await client._create_completion(
                 model="test-model", messages=messages, temperature=0.5, max_tokens=100
             )
@@ -797,7 +833,10 @@ class TestOllamaClientComprehensive:
                 mock_client_class.return_value = mock_client
 
                 # Test completion
-                messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "Test message"}])
+                messages = cast(
+                    list[ChatCompletionMessageParam],
+                    [{"role": "user", "content": "Test message"}],
+                )
                 await client._create_completion(
                     model="test-model",
                     messages=messages,

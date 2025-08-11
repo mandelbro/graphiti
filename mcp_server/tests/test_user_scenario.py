@@ -184,7 +184,11 @@ class TestUserScenario:
         # Should be Optional[List[str]] or list[str] | None
         assert get_origin(group_ids_type) is not None
         group_ids_str = str(group_ids_type)
-        assert "Optional" in group_ids_str or "Union" in group_ids_str or "| None" in group_ids_str
+        assert (
+            "Optional" in group_ids_str
+            or "Union" in group_ids_str
+            or "| None" in group_ids_str
+        )
 
         # Check List type
         args = get_args(group_ids_type)

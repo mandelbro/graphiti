@@ -48,7 +48,10 @@ class TestKeepAliveParameter:
             mock_client_class.return_value = mock_client
 
             # Test completion
-            messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "Test message"}])
+            messages = cast(
+                list[ChatCompletionMessageParam],
+                [{"role": "user", "content": "Test message"}],
+            )
             await client._create_completion(
                 model="test-model", messages=messages, temperature=0.7, max_tokens=200
             )
@@ -89,7 +92,10 @@ class TestKeepAliveParameter:
             mock_client_class.return_value = mock_client
 
             # Test completion with all parameters
-            messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "Test with full config"}])
+            messages = cast(
+                list[ChatCompletionMessageParam],
+                [{"role": "user", "content": "Test with full config"}],
+            )
             await client._create_completion(
                 model="gpt-oss:latest",
                 messages=messages,
@@ -154,7 +160,10 @@ class TestKeepAliveParameter:
             mock_client_class.return_value = mock_client
 
             # Test completion
-            messages = cast(list[ChatCompletionMessageParam], [{"role": "user", "content": "Priority test"}])
+            messages = cast(
+                list[ChatCompletionMessageParam],
+                [{"role": "user", "content": "Priority test"}],
+            )
             await client._create_completion(
                 model="test-model", messages=messages, temperature=0.5, max_tokens=100
             )

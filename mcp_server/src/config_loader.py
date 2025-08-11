@@ -74,7 +74,9 @@ class ConfigLoader:
                 config = yaml.safe_load(file)
                 # Ensure we always return a dictionary
                 if not isinstance(config, dict):
-                    logger.warning(f"Configuration file {full_path} does not contain a dictionary, returning empty dict")
+                    logger.warning(
+                        f"Configuration file {full_path} does not contain a dictionary, returning empty dict"
+                    )
                     return {}
                 logger.debug(f"Loaded configuration from {full_path}")
                 return config
