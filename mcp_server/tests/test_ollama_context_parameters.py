@@ -14,7 +14,7 @@ import yaml
 from graphiti_core.llm_client.config import LLMConfig
 
 from src.config_loader import ConfigLoader
-from src.graphiti_mcp_server import GraphitiLLMConfig
+from src.config.llm_config import GraphitiLLMConfig
 from src.ollama_client import OllamaClient
 
 # Create a config_loader instance for the tests
@@ -68,7 +68,7 @@ class TestOllamaContextParameters:
                 os.environ["USE_OLLAMA"] = "true"
 
                 # Patch the module-level config_loader to use our test instance
-                with patch("src.graphiti_mcp_server.config_loader", config_loader):
+                with patch("src.config.llm_config.config_loader", config_loader):
                     # Load configuration
                     llm_config = GraphitiLLMConfig.from_yaml_and_env()
 
@@ -108,7 +108,7 @@ class TestOllamaContextParameters:
                 os.environ["USE_OLLAMA"] = "true"
 
                 # Patch the module-level config_loader to use our test instance
-                with patch("src.graphiti_mcp_server.config_loader", config_loader):
+                with patch("src.config.llm_config.config_loader", config_loader):
                     llm_config = GraphitiLLMConfig.from_yaml_and_env()
                     client = llm_config.create_client()
 
@@ -151,7 +151,7 @@ class TestOllamaContextParameters:
                 os.environ["USE_OLLAMA"] = "true"
 
                 # Patch the module-level config_loader to use our test instance
-                with patch("src.graphiti_mcp_server.config_loader", config_loader):
+                with patch("src.config.llm_config.config_loader", config_loader):
                     llm_config = GraphitiLLMConfig.from_yaml_and_env()
                     client = llm_config.create_client()
 
