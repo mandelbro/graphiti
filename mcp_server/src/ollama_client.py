@@ -157,6 +157,19 @@ class OllamaClient(BaseOpenAIClient):
                 self.parsed = None  # Ollama doesn't support structured output
                 self.refusal = None  # Ollama doesn't have refusal mechanism
 
+            def model_dump(self) -> dict[str, Any]:
+                """Return dict representation compatible with Pydantic model_dump()."""
+                return {
+                    "content": self.content,
+                    "role": self.role,
+                    "parsed": self.parsed,
+                    "refusal": self.refusal,
+                    "annotations": None,
+                    "audio": None,
+                    "function_call": None,
+                    "tool_calls": None
+                }
+
         class MockResponse:
             def __init__(self, content: str, model: str):
                 self.choices = [MockChoice(content)]
