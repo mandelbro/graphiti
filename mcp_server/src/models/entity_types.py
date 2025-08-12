@@ -82,8 +82,8 @@ class Procedure(BaseModel):
 
 
 # Dictionary mapping entity type names to their corresponding model classes
-ENTITY_TYPES: dict[str, BaseModel] = {
-    "Requirement": Requirement,  # type: ignore
-    "Preference": Preference,  # type: ignore
-    "Procedure": Procedure,  # type: ignore
+ENTITY_TYPES: dict[str, type[BaseModel]] = {
+    "Requirement": Requirement,
+    "Preference": Preference,
+    "Procedure": Procedure,
 }
