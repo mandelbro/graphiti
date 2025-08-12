@@ -45,9 +45,9 @@ class TestUserScenario:
         # This should now work without parameter validation errors
         result = await search_memory_nodes(**user_payload)
 
-        # Should return error about Graphiti client not being initialized (expected)
+        # Should return error about server not being initialized (expected)
         assert isinstance(result, ErrorResponse)
-        assert "Graphiti client not initialized" in result.error
+        assert "Server initialization has not started" in result.error
 
     @pytest.mark.asyncio
     async def test_search_memory_nodes_minimal_payload(self):
@@ -59,9 +59,9 @@ class TestUserScenario:
 
         result = await search_memory_nodes(**minimal_payload)
 
-        # Should return error about Graphiti client not being initialized (expected)
+        # Should return error about server not being initialized (expected)
         assert isinstance(result, ErrorResponse)
-        assert "Graphiti client not initialized" in result.error
+        assert "Server initialization has not started" in result.error
 
     @pytest.mark.asyncio
     async def test_search_memory_nodes_with_optional_params(self):
@@ -88,9 +88,9 @@ class TestUserScenario:
         for test_case in test_cases:
             result = await search_memory_nodes(**test_case)
 
-            # Should return error about Graphiti client not being initialized (expected)
+            # Should return error about server not being initialized (expected)
             assert isinstance(result, ErrorResponse)
-            assert "Graphiti client not initialized" in result.error
+            assert "Server initialization has not started" in result.error
 
     def test_function_signature_compatibility(self):
         """Test that the function signature is compatible with MCP framework."""
@@ -243,7 +243,7 @@ class TestErrorHandling:
 
         # Check that error message is informative
         error_message = result.error
-        assert "Graphiti client not initialized" in error_message
+        assert "Server initialization has not started" in error_message
         assert len(error_message) > 20  # Should be descriptive
 
 

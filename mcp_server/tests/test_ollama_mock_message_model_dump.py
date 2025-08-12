@@ -5,7 +5,6 @@ This test verifies that MockMessage objects have the model_dump() method
 required for compatibility with BaseOpenAIClient response validation.
 """
 
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -43,9 +42,7 @@ class TestOllamaMockMessageModelDump:
         ]
 
         # Mock the httpx response
-        mock_response_data = {
-            "response": "Test response from Ollama"
-        }
+        mock_response_data = {"response": "Test response from Ollama"}
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -60,24 +57,27 @@ class TestOllamaMockMessageModelDump:
 
             # Act - Create completion which should return MockResponse with MockMessage
             result = await ollama_client._create_completion(
-                model="test_model",
-                messages=messages,
-                temperature=0.7,
-                max_tokens=100
+                model="test_model", messages=messages, temperature=0.7, max_tokens=100
             )
 
             # Assert - Verify MockMessage has model_dump() method
             mock_message = result.choices[0].message
-            assert hasattr(mock_message, "model_dump"), "MockMessage should have model_dump() method"
+            assert hasattr(mock_message, "model_dump"), (
+                "MockMessage should have model_dump() method"
+            )
 
             # Test that model_dump() returns a dictionary
             model_dump_result = mock_message.model_dump()
-            assert isinstance(model_dump_result, dict), "model_dump() should return a dictionary"
+            assert isinstance(model_dump_result, dict), (
+                "model_dump() should return a dictionary"
+            )
 
             # Verify required fields are in the model_dump output
             expected_fields = ["content", "role", "parsed", "refusal"]
             for field in expected_fields:
-                assert field in model_dump_result, f"model_dump() should include '{field}' field"
+                assert field in model_dump_result, (
+                    f"model_dump() should include '{field}' field"
+                )
 
             # Verify field values
             assert model_dump_result["content"] == "Test response from Ollama"
@@ -93,9 +93,7 @@ class TestOllamaMockMessageModelDump:
             {"role": "user", "content": "Test compatibility"}
         ]
 
-        mock_response_data = {
-            "response": "Compatibility test response"
-        }
+        mock_response_data = {"response": "Compatibility test response"}
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -110,10 +108,7 @@ class TestOllamaMockMessageModelDump:
 
             # Act
             result = await ollama_client._create_completion(
-                model="test_model",
-                messages=messages,
-                temperature=0.7,
-                max_tokens=100
+                model="test_model", messages=messages, temperature=0.7, max_tokens=100
             )
 
             # Assert - Test all expected OpenAI compatibility fields
@@ -129,17 +124,28 @@ class TestOllamaMockMessageModelDump:
                 "annotations",
                 "audio",
                 "function_call",
-                "tool_calls"
+                "tool_calls",
             ]
 
             for field in expected_openai_fields:
-                assert field in model_dump_result, f"Missing OpenAI compatibility field: {field}"
+                assert field in model_dump_result, (
+                    f"Missing OpenAI compatibility field: {field}"
+                )
 
             # Verify specific values for key fields
             assert model_dump_result["content"] == "Compatibility test response"
             assert model_dump_result["role"] == "assistant"
 
             # Verify optional fields are None (as expected for Ollama)
-            optional_fields = ["parsed", "refusal", "annotations", "audio", "function_call", "tool_calls"]
+            optional_fields = [
+                "parsed",
+                "refusal",
+                "annotations",
+                "audio",
+                "function_call",
+                "tool_calls",
+            ]
             for field in optional_fields:
-                assert model_dump_result[field] is None, f"Optional field '{field}' should be None"
+                assert model_dump_result[field] is None, (
+                    f"Optional field '{field}' should be None"
+                )

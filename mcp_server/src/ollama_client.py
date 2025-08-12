@@ -167,7 +167,7 @@ class OllamaClient(BaseOpenAIClient):
                     "annotations": None,
                     "audio": None,
                     "function_call": None,
-                    "tool_calls": None
+                    "tool_calls": None,
                 }
 
         class MockResponse:

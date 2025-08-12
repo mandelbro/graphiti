@@ -24,6 +24,7 @@ from src.models import (
     NodeSearchResponse,
 )
 from src.utils import format_fact_result
+from src.utils.initialization_state import initialization_manager
 
 # Get logger for this module
 logger = logging.getLogger(__name__)
@@ -52,6 +53,11 @@ async def search_memory_nodes(
     These contain a summary of all of a node's relationships with other nodes.
     """
     global graphiti_client, config
+
+    # Check initialization state first
+    if not initialization_manager.is_ready:
+        not_ready_info = initialization_manager.get_not_ready_response()
+        return ErrorResponse(error=not_ready_info["error"], details=not_ready_info)
 
     if graphiti_client is None:
         return ErrorResponse(error="Graphiti client not initialized")
@@ -125,6 +131,11 @@ async def search_memory_facts(
 ) -> FactSearchResponse | ErrorResponse:
     """Search the graph memory for relevant facts."""
     global graphiti_client, config
+
+    # Check initialization state first
+    if not initialization_manager.is_ready:
+        not_ready_info = initialization_manager.get_not_ready_response()
+        return ErrorResponse(error=not_ready_info["error"], details=not_ready_info)
 
     if graphiti_client is None:
         return ErrorResponse(error="Graphiti client not initialized")

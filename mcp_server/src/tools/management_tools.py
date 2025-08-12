@@ -21,6 +21,7 @@ from src.models.response_models import (
 
 # Import utilities from the utils package
 from src.utils.formatting_utils import format_fact_result
+from src.utils.initialization_state import initialization_manager
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,11 @@ async def get_entity_edge(uuid: str) -> dict[str, Any] | ErrorResponse:
         uuid: UUID of the entity edge to retrieve
     """
     global graphiti_client
+
+    # Check initialization state first
+    if not initialization_manager.is_ready:
+        not_ready_info = initialization_manager.get_not_ready_response()
+        return ErrorResponse(error=not_ready_info["error"], details=not_ready_info)
 
     if graphiti_client is None:
         return ErrorResponse(error="Graphiti client not initialized")
@@ -76,6 +82,11 @@ async def get_episodes(
         last_n: Number of most recent episodes to retrieve (default: 10)
     """
     global graphiti_client
+
+    # Check initialization state first
+    if not initialization_manager.is_ready:
+        not_ready_info = initialization_manager.get_not_ready_response()
+        return ErrorResponse(error=not_ready_info["error"], details=not_ready_info)
 
     if graphiti_client is None:
         return ErrorResponse(error="Graphiti client not initialized")
@@ -125,6 +136,13 @@ async def get_episodes(
 async def get_status() -> StatusResponse:
     """Get the status of the Graphiti MCP server and Neo4j connection."""
     global graphiti_client
+
+    # Check initialization state first
+    if not initialization_manager.is_ready:
+        not_ready_info = initialization_manager.get_not_ready_response()
+        return StatusResponse(
+            status="error", message=not_ready_info["error"], details=not_ready_info
+        )
 
     if graphiti_client is None:
         return StatusResponse(status="error", message="Graphiti client not initialized")

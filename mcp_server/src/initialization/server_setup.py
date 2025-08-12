@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from mcp.server.fastmcp import FastMCP
 
+from ..utils.initialization_state import initialization_manager
 from .graphiti_client import initialize_graphiti
 
 if TYPE_CHECKING:
@@ -163,15 +164,27 @@ async def run_mcp_server(
     mcp: FastMCP,
 ) -> None:
     """Run the MCP server in the current event loop."""
-    # Initialize the server
-    mcp_config, config, graphiti_client = await initialize_server(mcp)
+    try:
+        # Mark initialization as started
+        await initialization_manager.start_initialization()
 
-    # Run the server with stdio transport for MCP in the same event loop
-    logger.info(f"Starting MCP server with transport: {mcp_config.transport}")
-    if mcp_config.transport == "stdio":
-        await mcp.run_stdio_async()
-    elif mcp_config.transport == "sse":
-        logger.info(
-            f"Running MCP server with SSE transport on {mcp.settings.host}:{mcp.settings.port}"
-        )
-        await mcp.run_sse_async()
+        # Initialize the server
+        mcp_config, config, graphiti_client = await initialize_server(mcp)
+
+        # Mark initialization as completed
+        await initialization_manager.complete_initialization()
+
+        # Run the server with stdio transport for MCP in the same event loop
+        logger.info(f"Starting MCP server with transport: {mcp_config.transport}")
+        if mcp_config.transport == "stdio":
+            await mcp.run_stdio_async()
+        elif mcp_config.transport == "sse":
+            logger.info(
+                f"Running MCP server with SSE transport on {mcp.settings.host}:{mcp.settings.port}"
+            )
+            await mcp.run_sse_async()
+    except Exception as e:
+        # Mark initialization as failed
+        await initialization_manager.fail_initialization(str(e))
+        logger.error(f"Failed to start MCP server: {str(e)}")
+        raise

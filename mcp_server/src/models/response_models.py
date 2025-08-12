@@ -14,6 +14,7 @@ class ErrorResponse(BaseModel):
     """Standard error response model."""
 
     error: str
+    details: dict[str, Any] | None = None
 
 
 class SuccessResponse(BaseModel):
@@ -60,3 +61,4 @@ class StatusResponse(BaseModel):
 
     status: str
     message: str
+    details: dict[str, Any] | None = None

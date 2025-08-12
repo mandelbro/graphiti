@@ -282,9 +282,9 @@ class TestMCPToolErrorHandling:
         # This should now work without parameter validation errors
         result = await search_memory_nodes(**user_payload)
 
-        # Should return error about Graphiti client not being initialized (expected)
+        # Should return error about server initialization state (expected)
         assert isinstance(result, ErrorResponse)
-        assert "Graphiti client not initialized" in result.error
+        assert "initialization" in result.error.lower()
 
     @pytest.mark.asyncio
     async def test_tool_error_responses(self):
@@ -314,7 +314,11 @@ class TestMCPToolErrorHandling:
         for tool_func, params in tools_to_test:
             result = await tool_func(**params)
             assert isinstance(result, ErrorResponse)
-            assert "Graphiti client not initialized" in result.error
+            # Should return initialization state error or Graphiti client error
+            assert (
+                "initialization" in result.error.lower()
+                or "Graphiti client not initialized" in result.error
+            )
 
 
 class TestMCPToolTypeCompatibility:

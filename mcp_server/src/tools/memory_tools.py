@@ -20,6 +20,7 @@ from graphiti_core.utils.maintenance.graph_data_operations import clear_data
 from src.config import GraphitiConfig
 from src.models import ENTITY_TYPES, ErrorResponse, SuccessResponse
 from src.utils import episode_queues, process_episode_queue, queue_workers
+from src.utils.initialization_state import initialization_manager
 
 # Get logger for this module
 logger = logging.getLogger(__name__)
@@ -100,6 +101,16 @@ async def add_memory(
         - Relationships between entities will be established based on the JSON structure
     """
     global graphiti_client, episode_queues, queue_workers
+
+    # Check initialization state first
+    if not initialization_manager.is_ready:
+        not_ready_info = initialization_manager.get_not_ready_response()
+        return ErrorResponse(error=not_ready_info["error"], details=not_ready_info)
+
+    # Check initialization state first
+    if not initialization_manager.is_ready:
+        not_ready_info = initialization_manager.get_not_ready_response()
+        return ErrorResponse(error=not_ready_info["error"], details=not_ready_info)
 
     if graphiti_client is None:
         return ErrorResponse(error="Graphiti client not initialized")
@@ -193,6 +204,11 @@ async def delete_entity_edge(uuid: str) -> SuccessResponse | ErrorResponse:
     """
     global graphiti_client
 
+    # Check initialization state first
+    if not initialization_manager.is_ready:
+        not_ready_info = initialization_manager.get_not_ready_response()
+        return ErrorResponse(error=not_ready_info["error"], details=not_ready_info)
+
     if graphiti_client is None:
         return ErrorResponse(error="Graphiti client not initialized")
 
@@ -224,6 +240,11 @@ async def delete_episode(uuid: str) -> SuccessResponse | ErrorResponse:
     """
     global graphiti_client
 
+    # Check initialization state first
+    if not initialization_manager.is_ready:
+        not_ready_info = initialization_manager.get_not_ready_response()
+        return ErrorResponse(error=not_ready_info["error"], details=not_ready_info)
+
     if graphiti_client is None:
         return ErrorResponse(error="Graphiti client not initialized")
 
@@ -248,6 +269,11 @@ async def delete_episode(uuid: str) -> SuccessResponse | ErrorResponse:
 async def clear_graph() -> SuccessResponse | ErrorResponse:
     """Clear all data from the graph memory and rebuild indices."""
     global graphiti_client
+
+    # Check initialization state first
+    if not initialization_manager.is_ready:
+        not_ready_info = initialization_manager.get_not_ready_response()
+        return ErrorResponse(error=not_ready_info["error"], details=not_ready_info)
 
     if graphiti_client is None:
         return ErrorResponse(error="Graphiti client not initialized")
