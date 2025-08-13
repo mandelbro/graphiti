@@ -70,7 +70,7 @@ class OllamaClient(BaseOpenAIClient):
         self._shutdown_requested = False
 
         # Health check caching infrastructure
-        self._health_check_cache: dict[str, tuple[bool, float]] = {}
+        self._health_check_cache: dict[str, tuple[tuple[bool, str], float]] = {}
 
     async def __aenter__(self) -> "OllamaClient":
         """Async context manager entry."""
@@ -115,22 +115,28 @@ class OllamaClient(BaseOpenAIClient):
 
             # Server is healthy
             result = (True, f"Ollama server at {base_url} is healthy and accessible")
-            
+
         except httpx.ConnectError:
             # Connection failed - server not running or unreachable
-            result = (False, f"Cannot connect to Ollama server at {self.ollama_base_url}. Is Ollama running?")
-            
+            result = (
+                False,
+                f"Cannot connect to Ollama server at {self.ollama_base_url}. Is Ollama running?",
+            )
+
         except httpx.TimeoutException:
             # Server not responding in time
-            result = (False, f"Ollama server at {self.ollama_base_url} is not responding. Server may be overloaded.")
-            
+            result = (
+                False,
+                f"Ollama server at {self.ollama_base_url} is not responding. Server may be overloaded.",
+            )
+
         except Exception as e:
             # Generic error
             result = (False, f"Ollama health check failed: {e}")
 
         # Cache the result (both positive and negative)
         self._health_check_cache[cache_key] = (result, current_time)
-        
+
         return result
 
     async def _get_http_client(self) -> httpx.AsyncClient:
