@@ -9,6 +9,7 @@ like num_ctx, top_p, etc. to the Ollama API. It uses a hybrid approach:
 
 import json
 import logging
+import time
 import typing
 from typing import Any
 
@@ -68,6 +69,9 @@ class OllamaClient(BaseOpenAIClient):
         self._http_client: httpx.AsyncClient | None = None
         self._shutdown_requested = False
 
+        # Health check caching infrastructure
+        self._health_check_cache: dict[str, tuple[bool, float]] = {}
+
     async def __aenter__(self) -> "OllamaClient":
         """Async context manager entry."""
         return self
@@ -76,6 +80,58 @@ class OllamaClient(BaseOpenAIClient):
         """Async context manager exit - close HTTP client if it exists and is not closed."""
         if self._http_client and not self._http_client.is_closed:
             await self._http_client.aclose()
+
+    async def _check_ollama_health(self) -> tuple[bool, str]:
+        """
+        Check Ollama server health with intelligent caching.
+
+        Validates Ollama server availability by making a GET request to the /api/tags
+        endpoint. Results are cached for 5 minutes to avoid health check spam.
+
+        Returns:
+            tuple[bool, str]: (is_healthy, message) where is_healthy indicates if the
+                              server is accessible and message contains details
+        """
+        cache_key = f"health_{self.ollama_base_url}"
+        current_time = time.time()
+
+        # Check cache first (5-minute TTL)
+        if cache_key in self._health_check_cache:
+            cached_result, cached_time = self._health_check_cache[cache_key]
+            if current_time - cached_time < 300:  # 5 minutes = 300 seconds
+                return cached_result
+
+        # Perform health check
+        try:
+            # Construct the health check URL
+            base_url = self.ollama_base_url or "http://localhost:11434"
+            native_url = base_url.replace("/v1", "").rstrip("/")
+            health_url = f"{native_url}/api/tags"
+
+            # Make the health check request
+            client = await self._get_http_client()
+            response = await client.get(health_url, timeout=1.0)
+            response.raise_for_status()
+
+            # Server is healthy
+            result = (True, f"Ollama server at {base_url} is healthy and accessible")
+            
+        except httpx.ConnectError:
+            # Connection failed - server not running or unreachable
+            result = (False, f"Cannot connect to Ollama server at {self.ollama_base_url}. Is Ollama running?")
+            
+        except httpx.TimeoutException:
+            # Server not responding in time
+            result = (False, f"Ollama server at {self.ollama_base_url} is not responding. Server may be overloaded.")
+            
+        except Exception as e:
+            # Generic error
+            result = (False, f"Ollama health check failed: {e}")
+
+        # Cache the result (both positive and negative)
+        self._health_check_cache[cache_key] = (result, current_time)
+        
+        return result
 
     async def _get_http_client(self) -> httpx.AsyncClient:
         """
