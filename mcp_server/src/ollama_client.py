@@ -9,7 +9,6 @@ like num_ctx, top_p, etc. to the Ollama API. It uses a hybrid approach:
 
 import json
 import logging
-import time
 import typing
 from typing import Any
 
@@ -19,6 +18,9 @@ from graphiti_core.llm_client.openai_base_client import BaseOpenAIClient
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, ValidationError
+
+from .utils.ollama_health_validator import OllamaHealthValidator
+from .utils.ollama_response_converter import OllamaResponseConverter
 
 logger = logging.getLogger(__name__)
 
@@ -65,179 +67,33 @@ class OllamaClient(BaseOpenAIClient):
         # Store base URL for native Ollama API calls
         self.ollama_base_url = config.base_url if config else "http://localhost:11434"
 
+        # Initialize health validator utility
+        self._health_validator = OllamaHealthValidator(
+            self.ollama_base_url or "http://localhost:11434"
+        )
+
+        # Initialize response converter utility
+        self._response_converter = OllamaResponseConverter()
+
         # Connection pooling infrastructure
         self._http_client: httpx.AsyncClient | None = None
-        self._shutdown_requested = False
-
-        # Health check caching infrastructure
-        self._health_check_cache: dict[str, tuple[tuple[bool, str], float]] = {}
-
-        # Model validation caching infrastructure
-        self._model_cache: dict[str, bool | str] = {}
 
     async def __aenter__(self) -> "OllamaClient":
         """Async context manager entry."""
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Async context manager exit - close HTTP client if it exists and is not closed."""
+        """Async context manager exit - close HTTP client and health validator."""
         if self._http_client and not self._http_client.is_closed:
             await self._http_client.aclose()
-
-    async def _check_ollama_health(self) -> tuple[bool, str]:
-        """
-        Check Ollama server health with intelligent caching.
-
-        Validates Ollama server availability by making a GET request to the /api/tags
-        endpoint. Results are cached for 5 minutes to avoid health check spam.
-
-        Returns:
-            tuple[bool, str]: (is_healthy, message) where is_healthy indicates if the
-                              server is accessible and message contains details
-        """
-        cache_key = f"health_{self.ollama_base_url}"
-        current_time = time.time()
-
-        # Check cache first (5-minute TTL)
-        if cache_key in self._health_check_cache:
-            cached_result, cached_time = self._health_check_cache[cache_key]
-            if current_time - cached_time < 300:  # 5 minutes = 300 seconds
-                return cached_result
-
-        # Perform health check
-        try:
-            # Construct the health check URL
-            base_url = self.ollama_base_url or "http://localhost:11434"
-            native_url = base_url.replace("/v1", "").rstrip("/")
-            health_url = f"{native_url}/api/tags"
-
-            # Make the health check request
-            client = await self._get_http_client()
-            response = await client.get(health_url, timeout=1.0)
-            response.raise_for_status()
-
-            # Server is healthy
-            result = (True, f"Ollama server at {base_url} is healthy and accessible")
-
-        except httpx.ConnectError:
-            # Connection failed - server not running or unreachable
-            result = (
-                False,
-                f"Cannot connect to Ollama server at {self.ollama_base_url}. Is Ollama running?",
-            )
-
-        except httpx.TimeoutException:
-            # Server not responding in time
-            result = (
-                False,
-                f"Ollama server at {self.ollama_base_url} is not responding. Server may be overloaded.",
-            )
-
-        except Exception as e:
-            # Generic error
-            result = (False, f"Ollama health check failed: {e}")
-
-        # Cache the result (both positive and negative)
-        self._health_check_cache[cache_key] = (result, current_time)
-
-        return result
-
-    async def _validate_model_available(self, model: str) -> tuple[bool, str]:
-        """
-        Validate if the requested model is available on the Ollama server.
-
-        Checks the model cache first to avoid repeated API calls, then queries
-        the /api/tags endpoint to fetch available models. Results are cached
-        for future requests.
-
-        Args:
-            model: The model name to validate
-
-        Returns:
-            tuple[bool, str]: (is_available, message) where is_available indicates
-                             if the model is available and message contains details
-                             or error information
-        """
-        # Check cache first
-        cache_key = f"{model}_available"
-        error_cache_key = f"{model}_error_msg"
-
-        if cache_key in self._model_cache:
-            is_cached_available = self._model_cache[cache_key]
-            if is_cached_available:
-                return (True, "Model available")
-            else:
-                # Return cached error message if available
-                cached_error_msg = str(self._model_cache.get(
-                    error_cache_key, f"Model '{model}' not found"
-                ))
-                return (False, cached_error_msg)
-
-        try:
-            # Construct the tags URL
-            base_url = self.ollama_base_url or "http://localhost:11434"
-            native_url = base_url.replace("/v1", "").rstrip("/")
-            tags_url = f"{native_url}/api/tags"
-
-            # Make the API request
-            client = await self._get_http_client()
-            response = await client.get(tags_url, timeout=5.0)
-            response.raise_for_status()
-            tags_data = response.json()
-
-            # Extract available models
-            models_data = tags_data.get("models")
-            if models_data is None:
-                # Missing 'models' field - graceful fallback
-                logger.warning(
-                    f"No 'models' field in Ollama tags response, allowing request for '{model}' to proceed"
-                )
-                return (
-                    True,
-                    "Model validation skipped due to error: Missing 'models' field in response",
-                )
-
-            available_models = [
-                model_info.get("name", "") for model_info in models_data
-            ]
-
-            # Check if the requested model is available
-            model_available = model in available_models
-
-            # Cache the result (both positive and negative)
-            self._model_cache[cache_key] = model_available
-
-            if model_available:
-                return (True, "Model available")
-            else:
-                # Prepare helpful error message with first 5 available models
-                if available_models:
-                    first_models = available_models[:5]
-                    models_display = ", ".join(first_models)
-                else:
-                    models_display = "(none)"
-
-                error_msg = (
-                    f"Model '{model}' not found. Available models: {models_display}"
-                )
-                # Cache the error message too
-                self._model_cache[error_cache_key] = error_msg
-                return (False, error_msg)
-
-        except Exception as e:
-            # Log warning but don't cache failures (might be temporary)
-            logger.warning(f"Model validation failed for '{model}': {e}")
-
-            # Graceful fallback - allow the request to proceed
-            # Don't block on validation failures
-            return (True, f"Model validation skipped due to error: {e}")
+        # Close health validator resources
+        await self._health_validator.__aexit__(exc_type, exc_val, exc_tb)
 
     async def _get_http_client(self) -> httpx.AsyncClient:
         """
         Get or create a shared HTTP client with connection pooling.
 
-        Creates a new httpx.AsyncClient if none exists or current one is closed.
-        Configures connection limits and timeouts for optimal performance.
+        Delegates to health validator's HTTP client for consistency.
 
         Returns:
             httpx.AsyncClient: The shared HTTP client instance
@@ -285,8 +141,8 @@ class OllamaClient(BaseOpenAIClient):
                 parsed_data = json.loads(content.strip())
                 # Validate against the response model
                 parsed_model = response_model(**parsed_data)
-                # Update the response with parsed data
-                response.choices[0].message.parsed = parsed_model
+                # Update the response with parsed data using converter utility
+                self._response_converter.set_parsed_response(response, parsed_model)
                 logger.debug(
                     f"Successfully parsed structured response for model {model}"
                 )
@@ -319,7 +175,7 @@ class OllamaClient(BaseOpenAIClient):
     ):
         """Create a regular completion using native Ollama API to preserve parameters."""
         # Convert messages to a prompt for native API
-        prompt = self._messages_to_prompt(messages)
+        prompt = self._response_converter.messages_to_prompt(messages)
 
         # Use native Ollama API with parameters
         base_url = self.ollama_base_url or "http://localhost:11434"
@@ -349,62 +205,45 @@ class OllamaClient(BaseOpenAIClient):
         response_data = response.json()
 
         # Convert native response to OpenAI format
-        return self._convert_native_response_to_openai(response_data, model)
+        return self._response_converter.convert_native_response_to_openai(
+            response_data, model
+        )
+
+    async def check_health(self) -> tuple[bool, str]:
+        """
+        Check Ollama server health.
+
+        Delegates to health validator utility for health checking with caching.
+
+        Returns:
+            tuple[bool, str]: (is_healthy, message)
+        """
+        return await self._health_validator.check_health()
+
+    async def validate_model_available(self, model: str) -> tuple[bool, str]:
+        """
+        Validate if a model is available on the Ollama server.
+
+        Delegates to health validator utility for model validation with caching.
+
+        Args:
+            model: The model name to validate
+
+        Returns:
+            tuple[bool, str]: (is_available, message)
+        """
+        return await self._health_validator.validate_model_available(model)
 
     def _messages_to_prompt(self, messages: list[ChatCompletionMessageParam]) -> str:
-        """Convert OpenAI messages format to a simple prompt for native API."""
-        prompt_parts = []
-        for message in messages:
-            role = message.get("role", "user")
-            content = message.get("content", "")
-            if role == "system":
-                prompt_parts.append(f"System: {content}")
-            elif role == "user":
-                prompt_parts.append(f"User: {content}")
-            elif role == "assistant":
-                prompt_parts.append(f"Assistant: {content}")
+        """
+        Convert OpenAI messages format to a simple prompt for native API.
 
-        return "\n".join(prompt_parts)
+        Compatibility method that delegates to the response converter utility.
 
-    def _convert_native_response_to_openai(self, native_response: dict, model: str):
-        """Convert native Ollama response to OpenAI format."""
-        import time
+        Args:
+            messages: List of chat completion messages in OpenAI format
 
-        # Create a mock OpenAI response structure
-        class MockChoice:
-            def __init__(self, message_content: str):
-                self.message = MockMessage(message_content)
-                self.index = 0
-                self.finish_reason = "stop"
-
-        class MockMessage:
-            def __init__(self, content: str):
-                self.content = content
-                self.role = "assistant"
-                self.parsed: BaseModel | None = (
-                    None  # Can now hold parsed structured output
-                )
-                self.refusal = None  # Ollama doesn't have refusal mechanism
-
-            def model_dump(self) -> dict[str, Any]:
-                """Return dict representation compatible with Pydantic model_dump()."""
-                return {
-                    "content": self.content,
-                    "role": self.role,
-                    "parsed": self.parsed,
-                    "refusal": self.refusal,
-                    "annotations": None,
-                    "audio": None,
-                    "function_call": None,
-                    "tool_calls": None,
-                }
-
-        class MockResponse:
-            def __init__(self, content: str, model: str):
-                self.choices = [MockChoice(content)]
-                self.model = model
-                self.id = f"chatcmpl-{int(time.time())}"
-                self.created = int(time.time())
-                self.object = "chat.completion"
-
-        return MockResponse(native_response.get("response", ""), model)
+        Returns:
+            str: Formatted prompt string for Ollama native API
+        """
+        return self._response_converter.messages_to_prompt(messages)

@@ -53,9 +53,9 @@ class TestOllamaHealthCheck:
     @pytest.mark.asyncio
     async def test_health_check_cache_initialization(self, ollama_client):
         """Test that health check cache is properly initialized."""
-        assert hasattr(ollama_client, "_health_check_cache")
-        assert isinstance(ollama_client._health_check_cache, dict)
-        assert len(ollama_client._health_check_cache) == 0
+        assert hasattr(ollama_client._health_validator, "_health_check_cache")
+        assert isinstance(ollama_client._health_validator._health_check_cache, dict)
+        assert len(ollama_client._health_validator._health_check_cache) == 0
 
     @pytest.mark.asyncio
     async def test_health_check_successful(self, ollama_client):
@@ -64,12 +64,12 @@ class TestOllamaHealthCheck:
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
 
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
-            is_healthy, message = await ollama_client._check_ollama_health()
+            is_healthy, message = await ollama_client.check_health()
 
             assert is_healthy is True
             assert "healthy and accessible" in message
@@ -83,12 +83,12 @@ class TestOllamaHealthCheck:
     @pytest.mark.asyncio
     async def test_health_check_connect_error(self, ollama_client):
         """Test health check with connection error."""
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.side_effect = httpx.ConnectError("Connection failed")
             mock_get_client.return_value = mock_client
 
-            is_healthy, message = await ollama_client._check_ollama_health()
+            is_healthy, message = await ollama_client.check_health()
 
             assert is_healthy is False
             assert "Cannot connect to Ollama server" in message
@@ -97,12 +97,12 @@ class TestOllamaHealthCheck:
     @pytest.mark.asyncio
     async def test_health_check_timeout_error(self, ollama_client):
         """Test health check with timeout error."""
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.side_effect = httpx.TimeoutException("Timeout")
             mock_get_client.return_value = mock_client
 
-            is_healthy, message = await ollama_client._check_ollama_health()
+            is_healthy, message = await ollama_client.check_health()
 
             assert is_healthy is False
             assert "is not responding" in message
@@ -111,12 +111,12 @@ class TestOllamaHealthCheck:
     @pytest.mark.asyncio
     async def test_health_check_generic_error(self, ollama_client):
         """Test health check with generic error."""
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.side_effect = Exception("Generic error")
             mock_get_client.return_value = mock_client
 
-            is_healthy, message = await ollama_client._check_ollama_health()
+            is_healthy, message = await ollama_client.check_health()
 
             assert is_healthy is False
             assert "Ollama health check failed" in message
@@ -129,16 +129,16 @@ class TestOllamaHealthCheck:
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
 
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
             # First call
-            is_healthy1, message1 = await ollama_client._check_ollama_health()
+            is_healthy1, message1 = await ollama_client.check_health()
 
             # Second call (should use cache)
-            is_healthy2, message2 = await ollama_client._check_ollama_health()
+            is_healthy2, message2 = await ollama_client.check_health()
 
             # Results should be identical
             assert is_healthy1 is True and is_healthy2 is True
@@ -149,7 +149,7 @@ class TestOllamaHealthCheck:
 
             # Verify cache contains the result
             cache_key = f"health_{ollama_client.ollama_base_url}"
-            assert cache_key in ollama_client._health_check_cache
+            assert cache_key in ollama_client._health_validator._health_check_cache
 
     @pytest.mark.asyncio
     async def test_health_check_cache_expiration(self, ollama_client):
@@ -158,25 +158,25 @@ class TestOllamaHealthCheck:
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
 
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
             # First call
-            await ollama_client._check_ollama_health()
+            await ollama_client.check_health()
 
             # Manually expire the cache by setting an old timestamp
             cache_key = f"health_{ollama_client.ollama_base_url}"
-            if cache_key in ollama_client._health_check_cache:
-                result, _ = ollama_client._health_check_cache[cache_key]
-                ollama_client._health_check_cache[cache_key] = (
+            if cache_key in ollama_client._health_validator._health_check_cache:
+                result, _ = ollama_client._health_validator._health_check_cache[cache_key]
+                ollama_client._health_validator._health_check_cache[cache_key] = (
                     result,
                     time.time() - 400,
                 )  # 400 seconds ago
 
             # Second call (should make new request due to expired cache)
-            await ollama_client._check_ollama_health()
+            await ollama_client.check_health()
 
             # HTTP client should be called twice
             assert mock_client.get.call_count == 2
@@ -184,16 +184,16 @@ class TestOllamaHealthCheck:
     @pytest.mark.asyncio
     async def test_health_check_cache_negative_results(self, ollama_client):
         """Test that negative health check results are also cached."""
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.side_effect = httpx.ConnectError("Connection failed")
             mock_get_client.return_value = mock_client
 
             # First call (will fail and be cached)
-            is_healthy1, message1 = await ollama_client._check_ollama_health()
+            is_healthy1, message1 = await ollama_client.check_health()
 
             # Second call (should use cached failure)
-            is_healthy2, message2 = await ollama_client._check_ollama_health()
+            is_healthy2, message2 = await ollama_client.check_health()
 
             # Results should be identical failures
             assert is_healthy1 is False and is_healthy2 is False
@@ -208,12 +208,12 @@ class TestOllamaHealthCheck:
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
 
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
-            await ollama_client._check_ollama_health()
+            await ollama_client.check_health()
 
             # Verify the URL construction removes /v1 and adds /api/tags
             expected_url = "http://localhost:11434/api/tags"
@@ -225,13 +225,13 @@ class TestOllamaHealthCheck:
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
 
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
             start_time = time.time()
-            await ollama_client._check_ollama_health()
+            await ollama_client.check_health()
             elapsed_time = time.time() - start_time
 
             # Should complete very quickly (under 0.1 seconds in mocked scenario)
@@ -255,12 +255,12 @@ class TestOllamaHealthCheck:
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
 
-        with patch.object(client, "_get_http_client") as mock_get_client:
+        with patch.object(client._health_validator, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
-            is_healthy, message = await client._check_ollama_health()
+            is_healthy, message = await client.check_health()
 
             assert is_healthy is True
             assert "http://custom-ollama:8080/v1" in message
