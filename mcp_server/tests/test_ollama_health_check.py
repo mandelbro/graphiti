@@ -63,22 +63,21 @@ class TestOllamaHealthCheck:
         # Mock successful response
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
-        
+
         with patch.object(ollama_client, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
-            
+
             is_healthy, message = await ollama_client._check_ollama_health()
-            
+
             assert is_healthy is True
             assert "healthy and accessible" in message
             assert "http://localhost:11434/v1" in message
-            
+
             # Verify the call was made correctly
             mock_client.get.assert_called_once_with(
-                "http://localhost:11434/api/tags",
-                timeout=1.0
+                "http://localhost:11434/api/tags", timeout=1.0
             )
 
     @pytest.mark.asyncio
@@ -88,9 +87,9 @@ class TestOllamaHealthCheck:
             mock_client = AsyncMock()
             mock_client.get.side_effect = httpx.ConnectError("Connection failed")
             mock_get_client.return_value = mock_client
-            
+
             is_healthy, message = await ollama_client._check_ollama_health()
-            
+
             assert is_healthy is False
             assert "Cannot connect to Ollama server" in message
             assert "Is Ollama running?" in message
@@ -102,9 +101,9 @@ class TestOllamaHealthCheck:
             mock_client = AsyncMock()
             mock_client.get.side_effect = httpx.TimeoutException("Timeout")
             mock_get_client.return_value = mock_client
-            
+
             is_healthy, message = await ollama_client._check_ollama_health()
-            
+
             assert is_healthy is False
             assert "is not responding" in message
             assert "Server may be overloaded" in message
@@ -116,9 +115,9 @@ class TestOllamaHealthCheck:
             mock_client = AsyncMock()
             mock_client.get.side_effect = Exception("Generic error")
             mock_get_client.return_value = mock_client
-            
+
             is_healthy, message = await ollama_client._check_ollama_health()
-            
+
             assert is_healthy is False
             assert "Ollama health check failed" in message
             assert "Generic error" in message
@@ -129,25 +128,25 @@ class TestOllamaHealthCheck:
         # Mock successful response
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
-        
+
         with patch.object(ollama_client, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
-            
+
             # First call
             is_healthy1, message1 = await ollama_client._check_ollama_health()
-            
+
             # Second call (should use cache)
             is_healthy2, message2 = await ollama_client._check_ollama_health()
-            
+
             # Results should be identical
-            assert is_healthy1 == is_healthy2 == True
+            assert is_healthy1 is True and is_healthy2 is True
             assert message1 == message2
-            
+
             # HTTP client should only be called once (cached second time)
             assert mock_client.get.call_count == 1
-            
+
             # Verify cache contains the result
             cache_key = f"health_{ollama_client.ollama_base_url}"
             assert cache_key in ollama_client._health_check_cache
@@ -158,24 +157,27 @@ class TestOllamaHealthCheck:
         # Mock successful response
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
-        
+
         with patch.object(ollama_client, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
-            
+
             # First call
             await ollama_client._check_ollama_health()
-            
+
             # Manually expire the cache by setting an old timestamp
             cache_key = f"health_{ollama_client.ollama_base_url}"
             if cache_key in ollama_client._health_check_cache:
                 result, _ = ollama_client._health_check_cache[cache_key]
-                ollama_client._health_check_cache[cache_key] = (result, time.time() - 400)  # 400 seconds ago
-            
+                ollama_client._health_check_cache[cache_key] = (
+                    result,
+                    time.time() - 400,
+                )  # 400 seconds ago
+
             # Second call (should make new request due to expired cache)
             await ollama_client._check_ollama_health()
-            
+
             # HTTP client should be called twice
             assert mock_client.get.call_count == 2
 
@@ -186,17 +188,17 @@ class TestOllamaHealthCheck:
             mock_client = AsyncMock()
             mock_client.get.side_effect = httpx.ConnectError("Connection failed")
             mock_get_client.return_value = mock_client
-            
+
             # First call (will fail and be cached)
             is_healthy1, message1 = await ollama_client._check_ollama_health()
-            
+
             # Second call (should use cached failure)
             is_healthy2, message2 = await ollama_client._check_ollama_health()
-            
+
             # Results should be identical failures
-            assert is_healthy1 == is_healthy2 == False
+            assert is_healthy1 is False and is_healthy2 is False
             assert message1 == message2
-            
+
             # HTTP client should only be called once (cached second time)
             assert mock_client.get.call_count == 1
 
@@ -205,14 +207,14 @@ class TestOllamaHealthCheck:
         """Test that health check URL is constructed correctly."""
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
-        
+
         with patch.object(ollama_client, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
-            
+
             await ollama_client._check_ollama_health()
-            
+
             # Verify the URL construction removes /v1 and adds /api/tags
             expected_url = "http://localhost:11434/api/tags"
             mock_client.get.assert_called_once_with(expected_url, timeout=1.0)
@@ -222,19 +224,19 @@ class TestOllamaHealthCheck:
         """Test that health check completes quickly (< 1 second timeout)."""
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
-        
+
         with patch.object(ollama_client, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
-            
+
             start_time = time.time()
             await ollama_client._check_ollama_health()
             elapsed_time = time.time() - start_time
-            
+
             # Should complete very quickly (under 0.1 seconds in mocked scenario)
             assert elapsed_time < 0.1
-            
+
             # Verify timeout parameter is set to 1.0 second
             mock_client.get.assert_called_once()
             call_args = mock_client.get.call_args
@@ -248,23 +250,23 @@ class TestOllamaHealthCheck:
             model="test_model",
             base_url="http://custom-ollama:8080/v1",
         )
-        
+
         client = OllamaClient(config=custom_config)
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
-        
+
         with patch.object(client, "_get_http_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
-            
+
             is_healthy, message = await client._check_ollama_health()
-            
+
             assert is_healthy is True
             assert "http://custom-ollama:8080/v1" in message
-            
+
             # Verify URL construction for custom base URL
             expected_url = "http://custom-ollama:8080/api/tags"
             mock_client.get.assert_called_once_with(expected_url, timeout=1.0)
-        
+
         await client.__aexit__(None, None, None)
