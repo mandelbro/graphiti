@@ -72,6 +72,9 @@ class OllamaClient(BaseOpenAIClient):
         # Health check caching infrastructure
         self._health_check_cache: dict[str, tuple[tuple[bool, str], float]] = {}
 
+        # Model validation caching infrastructure
+        self._model_cache: dict[str, bool | str] = {}
+
     async def __aenter__(self) -> "OllamaClient":
         """Async context manager entry."""
         return self
@@ -138,6 +141,96 @@ class OllamaClient(BaseOpenAIClient):
         self._health_check_cache[cache_key] = (result, current_time)
 
         return result
+
+    async def _validate_model_available(self, model: str) -> tuple[bool, str]:
+        """
+        Validate if the requested model is available on the Ollama server.
+
+        Checks the model cache first to avoid repeated API calls, then queries
+        the /api/tags endpoint to fetch available models. Results are cached
+        for future requests.
+
+        Args:
+            model: The model name to validate
+
+        Returns:
+            tuple[bool, str]: (is_available, message) where is_available indicates
+                             if the model is available and message contains details
+                             or error information
+        """
+        # Check cache first
+        cache_key = f"{model}_available"
+        error_cache_key = f"{model}_error_msg"
+
+        if cache_key in self._model_cache:
+            is_cached_available = self._model_cache[cache_key]
+            if is_cached_available:
+                return (True, "Model available")
+            else:
+                # Return cached error message if available
+                cached_error_msg = str(self._model_cache.get(
+                    error_cache_key, f"Model '{model}' not found"
+                ))
+                return (False, cached_error_msg)
+
+        try:
+            # Construct the tags URL
+            base_url = self.ollama_base_url or "http://localhost:11434"
+            native_url = base_url.replace("/v1", "").rstrip("/")
+            tags_url = f"{native_url}/api/tags"
+
+            # Make the API request
+            client = await self._get_http_client()
+            response = await client.get(tags_url, timeout=5.0)
+            response.raise_for_status()
+            tags_data = response.json()
+
+            # Extract available models
+            models_data = tags_data.get("models")
+            if models_data is None:
+                # Missing 'models' field - graceful fallback
+                logger.warning(
+                    f"No 'models' field in Ollama tags response, allowing request for '{model}' to proceed"
+                )
+                return (
+                    True,
+                    "Model validation skipped due to error: Missing 'models' field in response",
+                )
+
+            available_models = [
+                model_info.get("name", "") for model_info in models_data
+            ]
+
+            # Check if the requested model is available
+            model_available = model in available_models
+
+            # Cache the result (both positive and negative)
+            self._model_cache[cache_key] = model_available
+
+            if model_available:
+                return (True, "Model available")
+            else:
+                # Prepare helpful error message with first 5 available models
+                if available_models:
+                    first_models = available_models[:5]
+                    models_display = ", ".join(first_models)
+                else:
+                    models_display = "(none)"
+
+                error_msg = (
+                    f"Model '{model}' not found. Available models: {models_display}"
+                )
+                # Cache the error message too
+                self._model_cache[error_cache_key] = error_msg
+                return (False, error_msg)
+
+        except Exception as e:
+            # Log warning but don't cache failures (might be temporary)
+            logger.warning(f"Model validation failed for '{model}': {e}")
+
+            # Graceful fallback - allow the request to proceed
+            # Don't block on validation failures
+            return (True, f"Model validation skipped due to error: {e}")
 
     async def _get_http_client(self) -> httpx.AsyncClient:
         """
