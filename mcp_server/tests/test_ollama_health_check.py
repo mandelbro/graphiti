@@ -64,7 +64,9 @@ class TestOllamaHealthCheck:
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
 
-        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
@@ -83,7 +85,9 @@ class TestOllamaHealthCheck:
     @pytest.mark.asyncio
     async def test_health_check_connect_error(self, ollama_client):
         """Test health check with connection error."""
-        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.side_effect = httpx.ConnectError("Connection failed")
             mock_get_client.return_value = mock_client
@@ -97,7 +101,9 @@ class TestOllamaHealthCheck:
     @pytest.mark.asyncio
     async def test_health_check_timeout_error(self, ollama_client):
         """Test health check with timeout error."""
-        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.side_effect = httpx.TimeoutException("Timeout")
             mock_get_client.return_value = mock_client
@@ -111,7 +117,9 @@ class TestOllamaHealthCheck:
     @pytest.mark.asyncio
     async def test_health_check_generic_error(self, ollama_client):
         """Test health check with generic error."""
-        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.side_effect = Exception("Generic error")
             mock_get_client.return_value = mock_client
@@ -129,7 +137,9 @@ class TestOllamaHealthCheck:
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
 
-        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
@@ -158,7 +168,9 @@ class TestOllamaHealthCheck:
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
 
-        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
@@ -169,7 +181,9 @@ class TestOllamaHealthCheck:
             # Manually expire the cache by setting an old timestamp
             cache_key = f"health_{ollama_client.ollama_base_url}"
             if cache_key in ollama_client._health_validator._health_check_cache:
-                result, _ = ollama_client._health_validator._health_check_cache[cache_key]
+                result, _ = ollama_client._health_validator._health_check_cache[
+                    cache_key
+                ]
                 ollama_client._health_validator._health_check_cache[cache_key] = (
                     result,
                     time.time() - 400,
@@ -184,7 +198,9 @@ class TestOllamaHealthCheck:
     @pytest.mark.asyncio
     async def test_health_check_cache_negative_results(self, ollama_client):
         """Test that negative health check results are also cached."""
-        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.side_effect = httpx.ConnectError("Connection failed")
             mock_get_client.return_value = mock_client
@@ -208,7 +224,9 @@ class TestOllamaHealthCheck:
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
 
-        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
@@ -225,7 +243,9 @@ class TestOllamaHealthCheck:
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
 
-        with patch.object(ollama_client._health_validator, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
@@ -255,7 +275,9 @@ class TestOllamaHealthCheck:
         mock_response = AsyncMock()
         mock_response.raise_for_status.return_value = None
 
-        with patch.object(client._health_validator, "_get_http_client") as mock_get_client:
+        with patch.object(
+            client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client

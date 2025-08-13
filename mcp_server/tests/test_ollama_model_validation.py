@@ -52,9 +52,9 @@ class TestOllamaModelValidation:
     @pytest.mark.asyncio
     async def test_model_cache_initialization(self, ollama_client):
         """Test that model cache is properly initialized."""
-        assert hasattr(ollama_client, "_model_cache")
-        assert isinstance(ollama_client._model_cache, dict)
-        assert len(ollama_client._model_cache) == 0
+        assert hasattr(ollama_client._health_validator, "_model_cache")
+        assert isinstance(ollama_client._health_validator._model_cache, dict)
+        assert len(ollama_client._health_validator._model_cache) == 0
 
     @pytest.mark.asyncio
     async def test_validate_model_available_success(self, ollama_client):
@@ -70,12 +70,14 @@ class TestOllamaModelValidation:
             ]
         }
 
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
-            is_available, message = await ollama_client._validate_model_available(
+            is_available, message = await ollama_client.validate_model_available(
                 "test_model"
             )
 
@@ -104,12 +106,14 @@ class TestOllamaModelValidation:
             ]
         }
 
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
-            is_available, message = await ollama_client._validate_model_available(
+            is_available, message = await ollama_client.validate_model_available(
                 "nonexistent_model"
             )
 
@@ -133,18 +137,20 @@ class TestOllamaModelValidation:
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = {"models": [{"name": "test_model"}]}
 
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
             # First call
-            is_available1, message1 = await ollama_client._validate_model_available(
+            is_available1, message1 = await ollama_client.validate_model_available(
                 "test_model"
             )
 
             # Second call (should use cache)
-            is_available2, message2 = await ollama_client._validate_model_available(
+            is_available2, message2 = await ollama_client.validate_model_available(
                 "test_model"
             )
 
@@ -163,18 +169,20 @@ class TestOllamaModelValidation:
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = {"models": [{"name": "different_model"}]}
 
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
             # First call
-            is_available1, message1 = await ollama_client._validate_model_available(
+            is_available1, message1 = await ollama_client.validate_model_available(
                 "nonexistent"
             )
 
             # Second call (should use cache)
-            is_available2, message2 = await ollama_client._validate_model_available(
+            is_available2, message2 = await ollama_client.validate_model_available(
                 "nonexistent"
             )
 
@@ -189,12 +197,14 @@ class TestOllamaModelValidation:
     @pytest.mark.asyncio
     async def test_validate_model_connection_error(self, ollama_client):
         """Test model validation with connection error (graceful fallback)."""
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.side_effect = httpx.ConnectError("Connection failed")
             mock_get_client.return_value = mock_client
 
-            is_available, message = await ollama_client._validate_model_available(
+            is_available, message = await ollama_client.validate_model_available(
                 "test_model"
             )
 
@@ -206,12 +216,14 @@ class TestOllamaModelValidation:
     @pytest.mark.asyncio
     async def test_validate_model_timeout_error(self, ollama_client):
         """Test model validation with timeout error (graceful fallback)."""
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.side_effect = httpx.TimeoutException("Timeout")
             mock_get_client.return_value = mock_client
 
-            is_available, message = await ollama_client._validate_model_available(
+            is_available, message = await ollama_client.validate_model_available(
                 "test_model"
             )
 
@@ -223,7 +235,9 @@ class TestOllamaModelValidation:
     @pytest.mark.asyncio
     async def test_validate_model_http_error(self, ollama_client):
         """Test model validation with HTTP error (graceful fallback)."""
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_response = Mock()
             mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
@@ -232,7 +246,7 @@ class TestOllamaModelValidation:
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
-            is_available, message = await ollama_client._validate_model_available(
+            is_available, message = await ollama_client.validate_model_available(
                 "test_model"
             )
 
@@ -243,7 +257,9 @@ class TestOllamaModelValidation:
     @pytest.mark.asyncio
     async def test_validate_model_malformed_json(self, ollama_client):
         """Test model validation with malformed JSON response (graceful fallback)."""
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_response = Mock()
             mock_response.raise_for_status.return_value = None
@@ -251,7 +267,7 @@ class TestOllamaModelValidation:
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
-            is_available, message = await ollama_client._validate_model_available(
+            is_available, message = await ollama_client.validate_model_available(
                 "test_model"
             )
 
@@ -263,7 +279,9 @@ class TestOllamaModelValidation:
     @pytest.mark.asyncio
     async def test_validate_model_missing_models_field(self, ollama_client):
         """Test model validation with missing 'models' field in response."""
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_response = Mock()
             mock_response.raise_for_status.return_value = None
@@ -271,7 +289,7 @@ class TestOllamaModelValidation:
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
-            is_available, message = await ollama_client._validate_model_available(
+            is_available, message = await ollama_client.validate_model_available(
                 "test_model"
             )
 
@@ -286,12 +304,14 @@ class TestOllamaModelValidation:
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = {"models": []}
 
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
-            is_available, message = await ollama_client._validate_model_available(
+            is_available, message = await ollama_client.validate_model_available(
                 "test_model"
             )
 
@@ -308,13 +328,15 @@ class TestOllamaModelValidation:
             "models": [{"name": "Llama3.1:8b"}]  # Capital L
         }
 
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
             # Test lowercase version should not match
-            is_available, message = await ollama_client._validate_model_available(
+            is_available, message = await ollama_client.validate_model_available(
                 "llama3.1:8b"
             )
 
@@ -329,16 +351,18 @@ class TestOllamaModelValidation:
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = {"models": [{"name": "model1"}]}
 
-        with patch.object(ollama_client, "_get_http_client") as mock_get_client:
+        with patch.object(
+            ollama_client._health_validator, "_get_http_client"
+        ) as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.return_value = mock_response
             mock_get_client.return_value = mock_client
 
             # Validate model1 (should be available)
-            is_available1, _ = await ollama_client._validate_model_available("model1")
+            is_available1, _ = await ollama_client.validate_model_available("model1")
 
             # Validate model2 (should not be available) - should make another API call
-            is_available2, _ = await ollama_client._validate_model_available("model2")
+            is_available2, _ = await ollama_client.validate_model_available("model2")
 
             assert is_available1 is True
             assert is_available2 is False

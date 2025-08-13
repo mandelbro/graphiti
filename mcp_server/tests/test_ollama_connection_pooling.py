@@ -45,8 +45,6 @@ class TestOllamaConnectionPooling:
         # Check that connection pooling variables are initialized
         assert hasattr(client, "_http_client")
         assert client._http_client is None
-        assert hasattr(client, "_shutdown_requested")
-        assert client._shutdown_requested is False
 
     @pytest.mark.asyncio
     async def test_async_context_manager_protocol(self, llm_config):

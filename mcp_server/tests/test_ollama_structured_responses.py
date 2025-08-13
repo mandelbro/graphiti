@@ -245,7 +245,7 @@ class TestOllamaPhase2StructuredResponses:
         client = OllamaClient()
 
         # Create a mock response to access MockMessage class
-        mock_response = client._convert_native_response_to_openai(
+        mock_response = client._response_converter.convert_native_response_to_openai(
             {"response": "test"}, "test-model"
         )
         message = mock_response.choices[0].message
