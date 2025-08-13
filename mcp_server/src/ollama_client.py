@@ -64,6 +64,41 @@ class OllamaClient(BaseOpenAIClient):
         # Store base URL for native Ollama API calls
         self.ollama_base_url = config.base_url if config else "http://localhost:11434"
 
+        # Connection pooling infrastructure
+        self._http_client: httpx.AsyncClient | None = None
+        self._shutdown_requested = False
+
+    async def __aenter__(self) -> "OllamaClient":
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Async context manager exit - close HTTP client if it exists and is not closed."""
+        if self._http_client and not self._http_client.is_closed:
+            await self._http_client.aclose()
+
+    async def _get_http_client(self) -> httpx.AsyncClient:
+        """
+        Get or create a shared HTTP client with connection pooling.
+
+        Creates a new httpx.AsyncClient if none exists or current one is closed.
+        Configures connection limits and timeouts for optimal performance.
+
+        Returns:
+            httpx.AsyncClient: The shared HTTP client instance
+        """
+        if self._http_client is None or self._http_client.is_closed:
+            # Create new HTTP client with connection pooling configuration
+            limits = httpx.Limits(
+                max_keepalive_connections=5, max_connections=10, keepalive_expiry=30.0
+            )
+
+            timeout = httpx.Timeout(connect=5.0, read=60.0, write=5.0, pool=2.0)
+
+            self._http_client = httpx.AsyncClient(limits=limits, timeout=timeout)
+
+        return self._http_client
+
     async def _create_structured_completion(
         self,
         model: str,
@@ -153,13 +188,13 @@ class OllamaClient(BaseOpenAIClient):
         if max_tokens is not None:
             payload["options"]["num_predict"] = max_tokens
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(api_url, json=payload, timeout=60.0)
-            response.raise_for_status()
-            response_data = response.json()
+        client = await self._get_http_client()
+        response = await client.post(api_url, json=payload, timeout=60.0)
+        response.raise_for_status()
+        response_data = response.json()
 
-            # Convert native response to OpenAI format
-            return self._convert_native_response_to_openai(response_data, model)
+        # Convert native response to OpenAI format
+        return self._convert_native_response_to_openai(response_data, model)
 
     def _messages_to_prompt(self, messages: list[ChatCompletionMessageParam]) -> str:
         """Convert OpenAI messages format to a simple prompt for native API."""
