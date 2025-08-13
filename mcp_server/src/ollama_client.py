@@ -7,6 +7,8 @@ like num_ctx, top_p, etc. to the Ollama API. It uses a hybrid approach:
 - Converts responses to OpenAI format for compatibility
 """
 
+import json
+import logging
 import typing
 from typing import Any
 
@@ -15,7 +17,9 @@ from graphiti_core.llm_client.config import DEFAULT_MAX_TOKENS, LLMConfig
 from graphiti_core.llm_client.openai_base_client import BaseOpenAIClient
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaClient(BaseOpenAIClient):
@@ -68,19 +72,52 @@ class OllamaClient(BaseOpenAIClient):
         max_tokens: int,
         response_model: type[BaseModel],
     ):
-        """Create a structured completion with Ollama model parameters.
+        """Enhanced structured completion with JSON parsing for Ollama.
 
-        Since Ollama doesn't support OpenAI's structured output API properly,
-        we fall back to using the regular completion API with the native Ollama API.
+        This method attempts to parse JSON responses from Ollama and populate
+        the parsed field when successful, providing better structured output
+        handling while maintaining compatibility with the base client.
         """
-        # Fall back to regular completion since Ollama doesn't support structured output properly
-        return await self._create_completion(
+        # Get regular completion from Ollama
+        response = await self._create_completion(
             model=model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
             response_model=response_model,
         )
+
+        # Attempt to parse structured response
+        try:
+            content = response.choices[0].message.content
+            if content and content.strip().startswith("{"):
+                # Try to parse as JSON
+                parsed_data = json.loads(content.strip())
+                # Validate against the response model
+                parsed_model = response_model(**parsed_data)
+                # Update the response with parsed data
+                response.choices[0].message.parsed = parsed_model
+                logger.debug(
+                    f"Successfully parsed structured response for model {model}"
+                )
+
+        except json.JSONDecodeError as e:
+            logger.warning(
+                f"Failed to parse JSON response from Ollama model {model}: {e}"
+            )
+            # Continue with parsed=None, which is fine for fallback handling
+        except ValidationError as e:
+            logger.warning(
+                f"Failed to validate parsed data against {response_model.__name__} for model {model}: {e}"
+            )
+            # Continue with parsed=None, which is fine for fallback handling
+        except Exception as e:
+            logger.warning(
+                f"Unexpected error during structured response parsing for model {model}: {e}"
+            )
+            # Continue with parsed=None, which is fine for fallback handling
+
+        return response
 
     async def _create_completion(
         self,
@@ -154,7 +191,9 @@ class OllamaClient(BaseOpenAIClient):
             def __init__(self, content: str):
                 self.content = content
                 self.role = "assistant"
-                self.parsed = None  # Ollama doesn't support structured output
+                self.parsed: BaseModel | None = (
+                    None  # Can now hold parsed structured output
+                )
                 self.refusal = None  # Ollama doesn't have refusal mechanism
 
             def model_dump(self) -> dict[str, Any]:
